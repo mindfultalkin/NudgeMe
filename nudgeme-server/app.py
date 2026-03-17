@@ -24,27 +24,35 @@ app.add_middleware(
 )
 
 # ── API Routes ──
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
-# ── Serve React Frontend ──
+# ── Serve React Frontend (only if built) ──
 STATIC_DIR = Path(__file__).parent / "static"
-if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+ASSETS_DIR = STATIC_DIR / "assets"
+INDEX_FILE = STATIC_DIR / "index.html"
 
-    @app.get("/")
-    async def serve_root():
-        return FileResponse(STATIC_DIR / "index.html")
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+    print("✅ Serving React frontend from static/")
+else:
+    print("⚠️  No static/assets found — frontend not built yet (OK for local dev)")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # If it's an API route don't intercept
-        if full_path.startswith("api/") or full_path.startswith("queue") or \
-           full_path.startswith("history") or full_path.startswith("schedule") or \
-           full_path.startswith("send") or full_path.startswith("approve") or \
-           full_path.startswith("reject") or full_path.startswith("generate") or \
-           full_path.startswith("webhook") or full_path.startswith("health"):
-            return {"detail": "Not Found"}
-        return FileResponse(STATIC_DIR / "index.html")
+# ── Catch-all: serve React SPA ──
+@app.get("/")
+async def serve_root():
+    if INDEX_FILE.exists():
+        return FileResponse(str(INDEX_FILE))
+    return {"message": "NudgeMe API is running. Frontend not built yet."}
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Don't intercept API routes
+    if full_path.startswith("api/"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404)
+    if INDEX_FILE.exists():
+        return FileResponse(str(INDEX_FILE))
+    return {"message": "NudgeMe API running", "path": full_path}
 
 # ── Scheduler ──
 scheduler = AsyncIOScheduler()
@@ -58,6 +66,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     scheduler.shutdown()
+    print("📅 Scheduler stopped")
 
 if __name__ == "__main__":
     import uvicorn
