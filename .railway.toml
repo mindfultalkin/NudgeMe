@@ -1,0 +1,8 @@
+[build]
+  builder = "nixpacks"
+  buildCommand = "cd nudgeme && npm ci && npm run build && cd ../nudgeme-server && pip install -r requirements.txt"
+
+[deploy]
+  startCommand = "start.bat"
+  restartPolicyType = "on-failure"
+  restartPolicyMaxRetries = 10

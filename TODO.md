@@ -1,6 +1,4 @@
-# Production Readiness for Railway Single-Service Deploy (Backend serves Frontend)
-
-## Current Progress: Step 9/12
+# NudgeMe Deployment TODO
 
 ## Steps:
 1. [x] Create root .gitignore
@@ -13,5 +11,5 @@
 8. [x] Replace print() in nudgeme-server/services/scheduler_service.py with logging
 9. [x] Create root/railway.json
 10. [x] Update README.md (deploy guide)
-11. [ ] Test local: Build FE & run `cd nudgeme-server && python app.py`
-12. [ ] Deploy to Railway: `railway up`
+11. [x] Test local: `cd nudgeme && npm run build && cd ../nudgeme-server && python app.py` (verified works)
+12. [ ] Deploy to Railway: `railway up` (fixed with start.sh + updated .railway.toml)
