@@ -3,6 +3,6 @@
   buildCommand = "cd nudgeme && npm ci && npm run build && cd ../nudgeme-server && pip install -r requirements.txt"
 
 [deploy]
-  startCommand = "start.bat"
+  startCommand = "cd nudgeme-server && gunicorn -w $((2 * $(nproc) + 1)) --bind=0.0.0.0:$PORT -k uvicorn.workers.UvicornWorker app:app"
   restartPolicyType = "on-failure"
   restartPolicyMaxRetries = 10
