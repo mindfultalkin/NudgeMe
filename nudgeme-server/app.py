@@ -14,7 +14,6 @@ from services.scheduler_service import run_scheduled_nudges
 
 app = FastAPI(title="NudgeMe API")
 
-# ── CORS ──
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,38 +22,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── API Routes ──
 app.include_router(api_router, prefix="/api")
 
-# ── Serve React Frontend (only if built) ──
-STATIC_DIR = Path(__file__).parent / "static"
+# ── Serve React — Vite builds to static/build ──
+STATIC_DIR = Path(__file__).parent / "static" / "build"
 ASSETS_DIR = STATIC_DIR / "assets"
 INDEX_FILE = STATIC_DIR / "index.html"
 
 if ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
-    print("✅ Serving React frontend from static/")
+    print(f"✅ Serving React frontend from {STATIC_DIR}")
 else:
-    print("⚠️  No static/assets found — frontend not built yet (OK for local dev)")
+    print("⚠️  No static/build/assets found — frontend not built yet (OK for local dev)")
 
-# ── Catch-all: serve React SPA ──
 @app.get("/")
 async def serve_root():
     if INDEX_FILE.exists():
         return FileResponse(str(INDEX_FILE))
-    return {"message": "NudgeMe API is running. Frontend not built yet."}
+    return {"message": "NudgeMe API is running"}
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    # Don't intercept API routes
     if full_path.startswith("api/"):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)
     if INDEX_FILE.exists():
         return FileResponse(str(INDEX_FILE))
-    return {"message": "NudgeMe API running", "path": full_path}
+    return {"message": "NudgeMe API running"}
 
-# ── Scheduler ──
 scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
@@ -66,7 +61,6 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     scheduler.shutdown()
-    print("📅 Scheduler stopped")
 
 if __name__ == "__main__":
     import uvicorn
