@@ -1,5 +1,5 @@
 export const SERVER = '/api';
-git commit -m "first commit"
+
 export const CHANNEL_ICONS = {
   Email: "✉",
   WhatsApp: "💬",
