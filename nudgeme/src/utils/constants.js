@@ -38,4 +38,3 @@ export const DESKTOP_TABS = [
   { id: "coachees", label: "Coachees" },
   { id: "history", label: "History" },
 ];
-
