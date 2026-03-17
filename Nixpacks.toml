@@ -1,0 +1,8 @@
+[phases.setup]
+  aptPkgs = ['nodejs', 'npm']
+
+[phases.build]
+  cmds = ['npm ci', 'npm run build', 'cd nudgeme-server && pip install -r requirements.txt']
+
+[phases.deploy]
+  cmds = ['cd nudgeme-server && gunicorn -w $((2 * $(nproc) + 1)) --bind=0.0.0.0:$PORT -k uvicorn.workers.UvicornWorker app:app']
