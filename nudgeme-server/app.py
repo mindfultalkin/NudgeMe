@@ -10,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pathlib import Path
 
 from controllers.api import router as api_router
+from controllers.webhook import router as webhook_router
 from services.scheduler_service import run_scheduled_nudges
 
 app = FastAPI(title="NudgeMe API")
@@ -22,7 +23,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Routes ──
 app.include_router(api_router, prefix="/api")
+app.include_router(webhook_router, prefix="/api")  # → /api/webhook/aisensy
 
 # ── Serve React — Vite builds to static/build ──
 STATIC_DIR = Path(__file__).parent / "static" / "build"

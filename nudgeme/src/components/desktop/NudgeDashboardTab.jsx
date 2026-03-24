@@ -8,6 +8,24 @@ import { CHANNEL_ICONS } from '../../utils/constants';
 import { wordCount, topicKey, formatDate } from '../../utils/helpers';
 import { generateNudge, sendNudge } from '../../services/api';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const generateWithRetry = async (topic, coacheeName, retries = 3) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const nudge = await generateNudge(topic, coacheeName);
+      if (nudge && !nudge.includes('Error')) return nudge;
+      throw new Error('Empty nudge');
+    } catch (e) {
+      if (attempt < retries) {
+        await sleep(attempt * 2000);
+      } else {
+        throw e;
+      }
+    }
+  }
+};
+
 export default function NudgeDashboardTab({ coachees, topics }) {
   const [nudges, setNudges] = useState({});
   const [loadingTopic, setLoadingTopic] = useState(null);
@@ -18,18 +36,19 @@ export default function NudgeDashboardTab({ coachees, topics }) {
   const [editValue, setEditValue] = useState('');
   const [selectedCoachee, setSelectedCoachee] = useState('ALL');
   const [sending, setSending] = useState({});
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
 
-  const filteredTopics = selectedCoachee === 'ALL' 
-    ? topics 
+  const filteredTopics = selectedCoachee === 'ALL'
+    ? topics
     : topics.filter((t) => t.coacheeName === selectedCoachee);
-  
+
   const coacheeNames = ['ALL', ...Array.from(new Set(coachees.map((c) => c.coacheeName)))];
 
   const handleGenerate = async (topicObj) => {
     const key = topicKey(topicObj);
     setLoadingTopic(key);
     try {
-      const nudge = await generateNudge(topicObj.topic, topicObj.coacheeName);
+      const nudge = await generateWithRetry(topicObj.topic, topicObj.coacheeName);
       setNudges((prev) => ({ ...prev, [key]: nudge }));
     } catch (e) {
       setNudges((prev) => ({ ...prev, [key]: '⚠ Failed to generate.' }));
@@ -39,17 +58,23 @@ export default function NudgeDashboardTab({ coachees, topics }) {
 
   const handleGenerateAll = async () => {
     setAllGenerating(true);
-    for (const t of filteredTopics) {
-      setLoadingTopic(topicKey(t));
+    setProgress({ current: 0, total: filteredTopics.length });
+    for (let i = 0; i < filteredTopics.length; i++) {
+      const t = filteredTopics[i];
+      const key = topicKey(t);
+      setLoadingTopic(key);
+      setProgress({ current: i + 1, total: filteredTopics.length });
       try {
-        const nudge = await generateNudge(t.topic, t.coacheeName);
-        setNudges((prev) => ({ ...prev, [topicKey(t)]: nudge }));
+        const nudge = await generateWithRetry(t.topic, t.coacheeName);
+        setNudges((prev) => ({ ...prev, [key]: nudge }));
       } catch (e) {
-        // Continue with next
+        setNudges((prev) => ({ ...prev, [key]: '⚠ Failed to generate.' }));
       }
+      await sleep(2000);
     }
     setLoadingTopic(null);
     setAllGenerating(false);
+    setProgress({ current: 0, total: 0 });
   };
 
   const handleSend = async (topicObj) => {
@@ -90,7 +115,6 @@ export default function NudgeDashboardTab({ coachees, topics }) {
 
   return (
     <div>
-      {/* Filter & Actions */}
       <Card className="mb-6 border-l-4 border-primary">
         <div className="flex flex-wrap gap-6 items-center">
           <Label>Filter by Coachee</Label>
@@ -111,19 +135,28 @@ export default function NudgeDashboardTab({ coachees, topics }) {
               </Button>
             ))}
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-col items-end gap-1">
             <Button
               variant={allGenerating ? 'ghost' : 'dark'}
               onClick={handleGenerateAll}
               disabled={allGenerating}
             >
-              {allGenerating ? 'Generating...' : `Generate All (${filteredTopics.length})`}
+              {allGenerating
+                ? `Generating ${progress.current} / ${progress.total}...`
+                : `Generate All (${filteredTopics.length})`}
             </Button>
+            {allGenerating && (
+              <div className="w-48 bg-gray-200 rounded-full h-1.5">
+                <div
+                  className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
-      {/* Topics List */}
       <div className="grid gap-4">
         {filteredTopics.map((t) => {
           const key = topicKey(t);
@@ -134,24 +167,15 @@ export default function NudgeDashboardTab({ coachees, topics }) {
           const ch = channel[key] || 'Email';
 
           return (
-            <Card
-              key={key}
-              className={`transition-opacity duration-300 ${isSent ? 'opacity-70' : ''}`}
-            >
+            <Card key={key} className={`transition-opacity duration-300 ${isSent ? 'opacity-70' : ''}`}>
               <div className="flex justify-between items-start flex-wrap gap-4">
-                {/* Left Side */}
                 <div className="flex-1 min-w-[200px]">
-                  {/* Tags */}
                   <div className="flex gap-2 mb-1 flex-wrap">
                     {t.date && <Tag>{formatDate(t.date)}</Tag>}
                     <Tag>{t.coacheeName} · {t.coach}</Tag>
                     {isSent && <Tag variant="success">✓ Sent</Tag>}
                   </div>
-                  
-                  {/* Topic */}
                   <div className="text-lg font-bold mb-3">{t.topic}</div>
-                  
-                  {/* Nudge */}
                   {nudge ? (
                     editingNudge === key ? (
                       <div className="flex gap-2 items-center">
@@ -161,12 +185,8 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                           autoFocus
                           className="flex-1 italic"
                         />
-                        <Button size="sm" onClick={() => { setNudges((p) => ({ ...p, [key]: editValue })); setEditingNudge(null); }}>
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingNudge(null)}>
-                          Cancel
-                        </Button>
+                        <Button size="sm" onClick={() => { setNudges((p) => ({ ...p, [key]: editValue })); setEditingNudge(null); }}>Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingNudge(null)}>Cancel</Button>
                       </div>
                     ) : (
                       <div className="flex items-start gap-3">
@@ -178,9 +198,7 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                           <Button size="sm" variant="ghost" onClick={() => handleCopy(nudge, key)}>
                             {copiedKey === key ? '✓' : 'Copy'}
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setEditingNudge(key); setEditValue(nudge); }}>
-                            Edit
-                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingNudge(key); setEditValue(nudge); }}>Edit</Button>
                         </div>
                       </div>
                     )
@@ -191,7 +209,6 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                   )}
                 </div>
 
-                {/* Right Side - Actions */}
                 <div className="flex flex-col gap-2 items-end min-w-[160px]">
                   <Button
                     variant={nudge ? 'ghost' : 'dark'}
@@ -201,7 +218,6 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                   >
                     {isLoading ? 'Generating...' : nudge ? 'Regenerate' : 'Generate Nudge'}
                   </Button>
-                  
                   {nudge && !isSent && (
                     <div className="flex gap-1 items-center">
                       <select
@@ -209,9 +225,7 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                         onChange={(e) => setChannel((prev) => ({ ...prev, [key]: e.target.value }))}
                         className="border border-border rounded-sm px-2 py-1 text-xs bg-white"
                       >
-                        {['Email', 'WhatsApp'].map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
+                        {['Email', 'WhatsApp'].map((c) => <option key={c}>{c}</option>)}
                       </select>
                       <Button
                         variant="secondary"
@@ -231,7 +245,6 @@ export default function NudgeDashboardTab({ coachees, topics }) {
         })}
       </div>
 
-      {/* Guardrails Info */}
       <div className="mt-6 p-4 bg-gray-100 border border-border rounded-sm text-xs text-muted">
         <strong style={{ color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', fontSize: '0.65rem' }}>
           Active Guardrails
@@ -243,4 +256,3 @@ export default function NudgeDashboardTab({ coachees, topics }) {
     </div>
   );
 }
-
