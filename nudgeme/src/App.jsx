@@ -2,226 +2,153 @@ import { useState, useEffect, useCallback } from 'react';
 import { useIsMobile } from './hooks/useIsMobile';
 import { parseExcelFile } from './services/excelParser';
 import { fetchQueue, fetchHistory, fetchSchedule } from './services/api';
-import { DESKTOP_TABS } from './utils/constants';
 
-// Desktop Components
 import DesktopUpload from './components/desktop/DesktopUpload';
 import OverviewTab from './components/desktop/OverviewTab';
 import ApprovalsTab from './components/desktop/ApprovalsTab';
 import CoacheesTab from './components/desktop/CoacheesTab';
 import HistoryTab from './components/desktop/HistoryTab';
 import NudgeDashboardTab from './components/desktop/NudgeDashboardTab';
-
-// Mobile Components
 import MobileUpload from './components/mobile/MobileUpload';
 import MobileApp from './components/mobile/MobileApp';
+
+const NAV = [
+  { id: 'overview',  label: 'Overview',        icon: 'dashboard' },
+  { id: 'nudges',    label: 'Nudge Dashboard',  icon: 'bolt' },
+  { id: 'approvals', label: 'Approvals',        icon: 'fact_check' },
+  { id: 'coachees',  label: 'Coachees',         icon: 'group' },
+  { id: 'history',   label: 'History',          icon: 'history' },
+];
 
 export default function App() {
   const isMobile = useIsMobile();
   const [coachees, setCoachees] = useState(null);
-  const [topics, setTopics] = useState(null);
+  const [topics, setTopics]     = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [fileName, setFileName] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
-  const [queue, setQueue] = useState([]);
+  const [queue, setQueue]     = useState([]);
   const [history, setHistory] = useState([]);
   const [schedule, setSchedule] = useState([]);
 
-  // API fetch functions
-  const fetchQueueData = useCallback(async () => {
-    try {
-      const data = await fetchQueue();
-      setQueue(data);
-    } catch (e) {
-      console.error('Error fetching queue:', e);
-    }
-  }, []);
+  const fetchQueueData    = useCallback(async () => { try { const d = await fetchQueue();    setQueue(d);    } catch(e){} }, []);
+  const fetchHistoryData  = useCallback(async () => { try { const d = await fetchHistory();  setHistory(d);  } catch(e){} }, []);
+  const fetchScheduleData = useCallback(async () => { try { const d = await fetchSchedule(); setSchedule(d); } catch(e){} }, []);
 
-  const fetchHistoryData = useCallback(async () => {
-    try {
-      const data = await fetchHistory();
-      setHistory(data);
-    } catch (e) {
-      console.error('Error fetching history:', e);
-    }
-  }, []);
+  useEffect(() => { if (coachees) { fetchQueueData(); fetchHistoryData(); fetchScheduleData(); } }, [coachees]);
+  useEffect(() => { if (!coachees) return; const t = setInterval(fetchQueueData, 120000); return () => clearInterval(t); }, [coachees]);
 
-  const fetchScheduleData = useCallback(async () => {
-    try {
-      const data = await fetchSchedule();
-      setSchedule(data);
-    } catch (e) {
-      console.error('Error fetching schedule:', e);
-    }
-  }, []);
-
-  // Initial data fetch
-  useEffect(() => {
-    if (coachees) {
-      fetchQueueData();
-      fetchHistoryData();
-      fetchScheduleData();
-    }
-  }, [coachees, fetchQueueData, fetchHistoryData, fetchScheduleData]);
-
-  // Polling for queue updates
-  useEffect(() => {
-    if (!coachees) return;
-    const interval = setInterval(fetchQueueData, 30000);
-    return () => clearInterval(interval);
-  }, [coachees, fetchQueueData]);
-
-  // File upload handler
   const handleUpload = async (file) => {
     setUploadError('');
     try {
       const { coachees: c, topics: t } = await parseExcelFile(file);
-      setCoachees(c);
-      setTopics(t);
-      setFileName(file.name);
-    } catch (err) {
-      setUploadError(err.message);
-    }
+      setCoachees(c); setTopics(t); setFileName(file.name);
+    } catch (err) { setUploadError(err.message); }
   };
 
-  // Reset handler
-  const handleReset = () => {
-    setCoachees(null);
-    setTopics(null);
-    setFileName('');
-    setQueue([]);
-    setHistory([]);
-  };
+  const handleReset = () => { setCoachees(null); setTopics(null); setFileName(''); setQueue([]); setHistory([]); };
 
-  // Loading state - show upload screen
   if (!coachees || !topics) {
-    return isMobile 
+    return isMobile
       ? <MobileUpload onUpload={handleUpload} error={uploadError} />
       : <DesktopUpload onUpload={handleUpload} error={uploadError} />;
   }
 
-  // Mobile app
   if (isMobile) {
-    return (
-      <MobileApp
-        coachees={coachees}
-        topics={topics}
-        queue={queue}
-        history={history}
-        schedule={schedule}
-        fileName={fileName}
-        onReset={handleReset}
-        fetchQueue={fetchQueueData}
-        fetchHistory={fetchHistoryData}
-        onScheduleUpdate={setSchedule}
-      />
-    );
+    return <MobileApp coachees={coachees} topics={topics} queue={queue} history={history}
+      schedule={schedule} fileName={fileName} onReset={handleReset}
+      fetchQueue={fetchQueueData} fetchHistory={fetchHistoryData} onScheduleUpdate={setSchedule} />;
   }
 
-  // Desktop app
-  const pendingCount = queue.filter((q) => q.status === 'pending').length;
-  const tabs = DESKTOP_TABS.map(tab => {
-    if (tab.id === 'approvals' && pendingCount > 0) {
-      return { ...tab, label: `Approvals (${pendingCount})` };
-    }
-    return tab;
-  });
+  const pendingCount = queue.filter(q => q.status === 'pending').length;
 
   return (
-    <div className="font-serif min-h-screen bg-surface-light text-primary-dark">
-      {/* Header */}
-      <div className="bg-primary-dark text-primary-light px-10 py-7 border-b-4 border-primary">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
-          {/* Logo & Title */}
-          <div>
-            <div className="text-xs tracking-widest uppercase text-primary mb-1">AI Coaching Agent</div>
-            <h1 className="m-0 text-3xl font-normal tracking-tighter leading-none">NudgeMe</h1>
-            <div className="mt-1 text-sm text-gray-500 flex items-center gap-2">
-              <span className="text-success">●</span> {fileName}
-              <button 
-                onClick={handleReset}
-                className="bg-transparent border border-gray-600 text-gray-500 px-2 py-0.5 text-xs tracking-widest uppercase rounded-sm cursor-pointer font-serif"
+    <div className="flex min-h-screen bg-surface text-on-surface font-body">
+      {/* Sidebar */}
+      <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-50 flex flex-col py-8 px-4 z-40">
+        <div className="mb-10 px-2">
+          <h1 className="text-xl font-serif italic text-primary">NudgeMe</h1>
+          <p className="text-[10px] uppercase tracking-widest text-outline mt-1">AI Coaching Agent</p>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {NAV.map(item => {
+            const isActive = activeTab === item.id;
+            const badge = item.id === 'approvals' && pendingCount > 0 ? pendingCount : null;
+            return (
+              <button key={item.id} onClick={() => {
+                setActiveTab(item.id);
+                if (item.id === 'approvals') fetchQueueData();
+                if (item.id === 'history') fetchHistoryData();
+              }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'text-primary font-bold bg-white shadow-sm'
+                    : 'text-slate-500 hover:text-primary hover:translate-x-1'
+                }`}
               >
-                Change File
+                <span className="material-symbols-outlined text-[20px]"
+                  style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
+                  {item.icon}
+                </span>
+                <span className="flex-1 text-left">{item.label}</span>
+                {badge && (
+                  <span className="bg-error text-on-error text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {badge}
+                  </span>
+                )}
               </button>
-            </div>
+            );
+          })}
+        </nav>
+
+        {/* File info */}
+        <div className="mt-4 pt-4 border-t border-outline-variant/20 px-2">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+            <span className="text-xs text-outline truncate">{fileName}</span>
           </div>
+          <button onClick={handleReset}
+            className="w-full text-xs text-outline hover:text-primary transition-colors flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+            Change File
+          </button>
+        </div>
+      </aside>
 
-          {/* Stats */}
-          <div className="flex gap-12 text-center">
-            {[
-              { label: 'Coachees', val: coachees.length },
-              { label: 'Topics', val: topics.length },
-              { label: 'Sent', val: history.length },
-              { label: 'Pending', val: pendingCount, alert: pendingCount > 0 },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div 
-                  className="text-2xl font-bold" 
-                  style={{ color: stat.alert ? '#e05a2b' : '#c9a84c', lineHeight: 1 }}
-                >
-                  {stat.val}
-                </div>
-                <div className="text-xs uppercase tracking-widest text-gray-500 mt-1">{stat.label}</div>
-              </div>
-            ))}
+      {/* Main */}
+      <main className="ml-64 flex-1 min-h-screen">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shadow-sm">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-outline">Dashboard</span>
+            <span className="material-symbols-outlined text-sm text-outline-variant">chevron_right</span>
+            <span className="text-primary font-semibold border-b-2 border-primary pb-0.5">
+              {NAV.find(n => n.id === activeTab)?.label}
+            </span>
           </div>
-        </div>
+          <div className="flex items-center gap-4 text-sm text-outline">
+            <span>{coachees.length} coachees</span>
+            <span className="text-outline-variant">·</span>
+            <span>{topics.length} topics</span>
+            <span className="text-outline-variant">·</span>
+            <span className="text-green-600 font-semibold">{history.length} sent</span>
+            {pendingCount > 0 && <>
+              <span className="text-outline-variant">·</span>
+              <span className="text-error font-semibold">{pendingCount} pending</span>
+            </>}
+          </div>
+        </header>
 
-        {/* Tabs */}
-        <div className="flex gap-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'approvals') fetchQueueData();
-                if (tab.id === 'history') fetchHistoryData();
-              }}
-              className={`px-5 py-2 text-sm uppercase tracking-widest cursor-pointer rounded-t-sm font-serif transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-primary text-primary-dark border border-b-0 border-primary'
-                  : 'bg-transparent text-gray-500 border border-b-0 border-transparent hover:text-gray-300'
-              }`}
-              style={{
-                background: activeTab === tab.id ? '#c9a84c' : 'transparent',
-                color: activeTab === tab.id ? '#1a1a18' : '#aaa',
-                borderColor: activeTab === tab.id ? '#c9a84c' : '#333',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Tab content */}
+        <div className="p-8">
+          {activeTab === 'overview'  && <OverviewTab coachees={coachees} topics={topics} history={history} queue={queue} />}
+          {activeTab === 'nudges'    && <NudgeDashboardTab coachees={coachees} topics={topics} />}
+          {activeTab === 'approvals' && <ApprovalsTab queue={queue} onRefresh={() => { fetchQueueData(); fetchHistoryData(); }} />}
+          {activeTab === 'coachees'  && <CoacheesTab coachees={coachees} topics={topics} schedule={schedule} onScheduleUpdate={setSchedule} />}
+          {activeTab === 'history'   && <HistoryTab history={history} coachees={coachees} />}
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="p-8 max-w-6xl mx-auto">
-        {activeTab === 'overview' && (
-          <OverviewTab coachees={coachees} topics={topics} history={history} queue={queue} />
-        )}
-        {activeTab === 'nudges' && (
-          <NudgeDashboardTab coachees={coachees} topics={topics} />
-        )}
-        {activeTab === 'approvals' && (
-          <ApprovalsTab 
-            queue={queue} 
-            onRefresh={() => { fetchQueueData(); fetchHistoryData(); }} 
-          />
-        )}
-        {activeTab === 'coachees' && (
-          <CoacheesTab 
-            coachees={coachees} 
-            topics={topics} 
-            schedule={schedule} 
-            onScheduleUpdate={setSchedule} 
-          />
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab history={history} coachees={coachees} />
-        )}
-      </div>
+      </main>
     </div>
   );
 }
-

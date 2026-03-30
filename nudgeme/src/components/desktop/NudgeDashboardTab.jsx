@@ -1,258 +1,236 @@
 import { useState } from 'react';
-import Card from '../common/Card';
-import Label from '../common/Label';
-import Tag from '../common/Tag';
-import Button from '../common/Button';
-import Input from '../common/Input';
-import { CHANNEL_ICONS } from '../../utils/constants';
 import { wordCount, topicKey, formatDate } from '../../utils/helpers';
 import { generateNudge, sendNudge } from '../../services/api';
+import { CHANNEL_ICONS } from '../../utils/constants';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const generateWithRetry = async (topic, coacheeName, retries = 3) => {
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  for (let i = 1; i <= retries; i++) {
     try {
-      const nudge = await generateNudge(topic, coacheeName);
-      if (nudge && !nudge.includes('Error')) return nudge;
-      throw new Error('Empty nudge');
-    } catch (e) {
-      if (attempt < retries) {
-        await sleep(attempt * 2000);
-      } else {
-        throw e;
-      }
-    }
+      const n = await generateNudge(topic, coacheeName);
+      if (n && !n.includes('Error')) return n;
+      throw new Error('bad nudge');
+    } catch(e) { if (i < retries) await sleep(i * 2000); else throw e; }
   }
 };
 
 export default function NudgeDashboardTab({ coachees, topics }) {
-  const [nudges, setNudges] = useState({});
-  const [loadingTopic, setLoadingTopic] = useState(null);
-  const [channel, setChannel] = useState({});
-  const [copiedKey, setCopiedKey] = useState(null);
-  const [allGenerating, setAllGenerating] = useState(false);
-  const [editingNudge, setEditingNudge] = useState(null);
-  const [editValue, setEditValue] = useState('');
-  const [selectedCoachee, setSelectedCoachee] = useState('ALL');
-  const [sending, setSending] = useState({});
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [nudges, setNudges]         = useState({});
+  const [loadingTopic, setLoading]  = useState(null);
+  const [allGenerating, setAllGen]  = useState(false);
+  const [progress, setProgress]     = useState({ current: 0, total: 0 });
+  const [channel, setChannel]       = useState({});
+  const [sending, setSending]       = useState({});
+  const [editing, setEditing]       = useState(null);
+  const [editVal, setEditVal]       = useState('');
+  const [copied, setCopied]         = useState(null);
+  const [filter, setFilter]         = useState('ALL');
 
-  const filteredTopics = selectedCoachee === 'ALL'
-    ? topics
-    : topics.filter((t) => t.coacheeName === selectedCoachee);
+  const coacheeNames = ['ALL', ...Array.from(new Set(coachees.map(c => c.coacheeName)))];
+  const filtered = filter === 'ALL' ? topics : topics.filter(t => t.coacheeName === filter);
 
-  const coacheeNames = ['ALL', ...Array.from(new Set(coachees.map((c) => c.coacheeName)))];
+  const handleGenerate = async (t) => {
+    const key = topicKey(t);
+    setLoading(key);
 
-  const handleGenerate = async (topicObj) => {
-    const key = topicKey(topicObj);
-    setLoadingTopic(key);
     try {
-      const nudge = await generateWithRetry(topicObj.topic, topicObj.coacheeName);
-      setNudges((prev) => ({ ...prev, [key]: nudge }));
+      const result = await generateWithRetry(t.topic, t.coacheeName);
+
+      setNudges(p => ({
+        ...p,
+        [key]: result
+      }));
     } catch (e) {
-      setNudges((prev) => ({ ...prev, [key]: '⚠ Failed to generate.' }));
+      setNudges(p => ({
+        ...p,
+        [key]: '⚠ Failed to generate.'
+      }));
     }
-    setLoadingTopic(null);
+
+    setLoading(null);
   };
 
   const handleGenerateAll = async () => {
-    setAllGenerating(true);
-    setProgress({ current: 0, total: filteredTopics.length });
-    for (let i = 0; i < filteredTopics.length; i++) {
-      const t = filteredTopics[i];
-      const key = topicKey(t);
-      setLoadingTopic(key);
-      setProgress({ current: i + 1, total: filteredTopics.length });
-      try {
-        const nudge = await generateWithRetry(t.topic, t.coacheeName);
-        setNudges((prev) => ({ ...prev, [key]: nudge }));
-      } catch (e) {
-        setNudges((prev) => ({ ...prev, [key]: '⚠ Failed to generate.' }));
-      }
+    setAllGen(true); setProgress({ current: 0, total: filtered.length });
+    for (let i = 0; i < filtered.length; i++) {
+      const t = filtered[i]; const key = topicKey(t);
+      setLoading(key); setProgress({ current: i+1, total: filtered.length });
+      try { const n = await generateWithRetry(t.topic, t.coacheeName); setNudges(p => ({ ...p, [key]: n })); }
+      catch(e) { setNudges(p => ({ ...p, [key]: '⚠ Failed.' })); }
       await sleep(2000);
     }
-    setLoadingTopic(null);
-    setAllGenerating(false);
-    setProgress({ current: 0, total: 0 });
+    setLoading(null); setAllGen(false); setProgress({ current: 0, total: 0 });
   };
 
-  const handleSend = async (topicObj) => {
-    const key = topicKey(topicObj);
-    const nudge = nudges[key];
-    if (!nudge) return;
-
+  const handleSend = async (t) => {
+    const key = topicKey(t); const nudge = nudges[key]; if (!nudge) return;
     const ch = channel[key] || 'Email';
-    const coachee = coachees.find((c) => c.coacheeName === topicObj.coacheeName);
-    const destination = ch === 'Email' ? coachee?.email : coachee?.phone;
-
-    setSending((prev) => ({ ...prev, [key]: true }));
+    const coachee = coachees.find(c => c.coacheeName === t.coacheeName);
+    const dest = ch === 'Email' ? coachee?.email : coachee?.phone;
+    setSending(p => ({ ...p, [key]: true }));
     try {
-      const result = await sendNudge({
-        coacheeName: topicObj.coacheeName,
-        topic: topicObj.topic,
-        nudge,
-        channel: ch,
-        destination,
-        coach: topicObj.coach,
-      });
-      if (result.success) {
-        setNudges((prev) => ({ ...prev, [key + '::sent']: true }));
-      } else {
-        alert(`Failed: ${result.error}`);
-      }
-    } catch (err) {
-      alert(`Server error: ${err.message}`);
-    }
-    setSending((prev) => ({ ...prev, [key]: false }));
-  };
-
-  const handleCopy = (nudge, key) => {
-    navigator.clipboard.writeText(nudge);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 1500);
+      const res = await sendNudge({ coacheeName: t.coacheeName, topic: t.topic, nudge, channel: ch, destination: dest, coach: t.coach });
+      if (res.success) setNudges(p => ({ ...p, [key+'::sent']: true }));
+      else alert(`Failed: ${res.error}`);
+    } catch(e) { alert(`Error: ${e.message}`); }
+    setSending(p => ({ ...p, [key]: false }));
   };
 
   return (
-    <div>
-      <Card className="mb-6 border-l-4 border-primary">
-        <div className="flex flex-wrap gap-6 items-center">
-          <Label>Filter by Coachee</Label>
-          <div className="flex gap-1 flex-wrap">
-            {coacheeNames.map((name) => (
-              <Button
-                key={name}
-                size="sm"
-                variant={selectedCoachee === name ? 'primary' : 'ghost'}
-                onClick={() => setSelectedCoachee(name)}
-              >
-                {name}
-                {name !== 'ALL' && (
-                  <span className="ml-1" style={{ color: selectedCoachee === name ? '#c9a84c' : '#aaa', fontSize: '0.65rem' }}>
-                    ({topics.filter((t) => t.coacheeName === name).length})
-                  </span>
-                )}
-              </Button>
-            ))}
-          </div>
-          <div className="ml-auto flex flex-col items-end gap-1">
-            <Button
-              variant={allGenerating ? 'ghost' : 'dark'}
-              onClick={handleGenerateAll}
-              disabled={allGenerating}
-            >
-              {allGenerating
-                ? `Generating ${progress.current} / ${progress.total}...`
-                : `Generate All (${filteredTopics.length})`}
-            </Button>
-            {allGenerating && (
-              <div className="w-48 bg-gray-200 rounded-full h-1.5">
-                <div
-                  className="bg-primary h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-                />
-              </div>
-            )}
-          </div>
+    <div className="max-w-7xl mx-auto">
+      {/* Hero */}
+      <section className="flex flex-col md:flex-row justify-between items-end gap-6 mb-10">
+        <div>
+          <h1 className="font-serif text-5xl text-on-surface leading-tight mb-2">The Morning Dispatch</h1>
+          <p className="text-lg text-on-surface-variant/80">Crafting personalised interventions for your active coachees.</p>
         </div>
-      </Card>
+        <div className="flex flex-col gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-xl">
+            {/* Filter */}
+            <div className="px-3 py-2 bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/10 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-sm">filter_list</span>
+              <select value={filter} onChange={e => setFilter(e.target.value)}
+                className="bg-transparent border-none text-sm font-semibold text-on-surface focus:ring-0 cursor-pointer">
+                {coacheeNames.map(n => <option key={n}>{n === 'ALL' ? `All Coachees (${topics.length})` : `${n} (${topics.filter(t=>t.coacheeName===n).length})`}</option>)}
+              </select>
+            </div>
+            <button onClick={handleGenerateAll} disabled={allGenerating}
+              className="px-6 py-3 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-xl font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform disabled:opacity-60">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+              {allGenerating ? `${progress.current}/${progress.total}` : 'Bulk Generate'}
+            </button>
+          </div>
+          {allGenerating && (
+            <div className="w-full bg-surface-container rounded-full h-1.5">
+              <div className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${progress.total > 0 ? (progress.current/progress.total)*100 : 0}%` }} />
+            </div>
+          )}
+        </div>
+      </section>
 
-      <div className="grid gap-4">
-        {filteredTopics.map((t) => {
-          const key = topicKey(t);
-          const nudge = nudges[key];
-          const isLoading = loadingTopic === key;
-          const isSent = nudges[key + '::sent'];
-          const words = wordCount(nudge);
-          const ch = channel[key] || 'Email';
+      {/* Cards grid */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-8">
+        {filtered.map(t => {
+          const key    = topicKey(t);
+          const nudge  = nudges[key];
+          const isLoad = loadingTopic === key;
+          const isSent = nudges[key+'::sent'];
+          const words  = wordCount(nudge);
+          const ch     = channel[key] || 'Email';
 
           return (
-            <Card key={key} className={`transition-opacity duration-300 ${isSent ? 'opacity-70' : ''}`}>
-              <div className="flex justify-between items-start flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="flex gap-2 mb-1 flex-wrap">
-                    {t.date && <Tag>{formatDate(t.date)}</Tag>}
-                    <Tag>{t.coacheeName} · {t.coach}</Tag>
-                    {isSent && <Tag variant="success">✓ Sent</Tag>}
+            <div key={key} className={`group bg-surface-container-lowest rounded-3xl p-8 flex flex-col gap-5 shadow-sm hover:shadow-xl hover:shadow-on-surface/5 transition-all duration-500 ${isSent ? 'opacity-70' : ''}`}>
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-serif text-xl text-on-surface">{t.coacheeName}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 bg-surface-container rounded text-[10px] font-bold text-on-surface-variant uppercase">{t.topic}</span>
+                    {t.date && <span className="text-xs text-outline">{formatDate(t.date)}</span>}
                   </div>
-                  <div className="text-lg font-bold mb-3">{t.topic}</div>
-                  {nudge ? (
-                    editingNudge === key ? (
-                      <div className="flex gap-2 items-center">
-                        <Input
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          autoFocus
-                          className="flex-1 italic"
-                        />
-                        <Button size="sm" onClick={() => { setNudges((p) => ({ ...p, [key]: editValue })); setEditingNudge(null); }}>Save</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingNudge(null)}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 italic text-base text-gray-700 border-l-2 border-primary pl-3 leading-relaxed">
-                          {nudge}
-                        </div>
-                        <div className="flex gap-1 flex-shrink-0">
-                          <Tag variant={words > 20 ? 'danger' : 'success'}>{words}w</Tag>
-                          <Button size="sm" variant="ghost" onClick={() => handleCopy(nudge, key)}>
-                            {copiedKey === key ? '✓' : 'Copy'}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setEditingNudge(key); setEditValue(nudge); }}>Edit</Button>
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <div className="text-sm text-gray-400 italic">
-                      {isLoading ? 'Generating nudge...' : 'No nudge generated yet.'}
+                </div>
+                {isSent
+                  ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase">✓ Sent</span>
+                  : nudge && <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${words > 20 ? 'bg-error-container text-on-error-container' : 'bg-primary-fixed text-on-primary-fixed'}`}>{words}w</span>
+                }
+              </div>
+
+              {/* Nudge content */}
+              {nudge ? (
+                editing === key ? (
+                  <div className="space-y-2">
+                    <textarea value={editVal} onChange={e => setEditVal(e.target.value)} autoFocus
+                      className="w-full bg-surface-container-high border-none rounded-xl text-sm p-4 focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setNudges(p => ({ ...p, [key]: editVal })); setEditing(null); }}
+                        className="flex-1 bg-primary text-on-primary py-2 rounded-xl text-sm font-bold">Save</button>
+                      <button onClick={() => setEditing(null)}
+                        className="flex-1 bg-surface-container text-on-surface-variant py-2 rounded-xl text-sm font-bold">Cancel</button>
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="bg-surface p-5 rounded-2xl border-l-4 border-primary/40 italic text-on-surface-variant leading-relaxed relative">
+                    <span className="absolute -top-3 left-5 px-3 bg-surface-container-highest text-[10px] font-bold tracking-widest text-primary uppercase rounded-full">AI Generated</span>
+                    "{nudge}"
+                  </div>
+                )
+              ) : (
+                <div className="bg-surface-container rounded-2xl p-6 flex items-center justify-center min-h-[80px]">
+                  {isLoad
+                    ? <div className="flex items-center gap-3 text-on-surface-variant"><span className="material-symbols-outlined animate-spin text-primary">refresh</span> Generating...</div>
+                    : <p className="text-sm text-on-surface-variant italic">No nudge generated yet.</p>
+                  }
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-between mt-auto">
+                <div className="flex gap-2">
+                  {nudge && !isSent && editing !== key && <>
+                    <button onClick={() => { setEditing(key); setEditVal(nudge); }}
+                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" title="Edit">
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    <button onClick={() => { navigator.clipboard.writeText(nudge); setCopied(key); setTimeout(()=>setCopied(null),1500); }}
+                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" title="Copy">
+                      <span className="material-symbols-outlined text-sm">{copied===key ? 'check' : 'content_copy'}</span>
+                    </button>
+                  </>}
                 </div>
 
-                <div className="flex flex-col gap-2 items-end min-w-[160px]">
-                  <Button
-                    variant={nudge ? 'ghost' : 'dark'}
-                    disabled={isLoading || allGenerating}
-                    onClick={() => handleGenerate(t)}
-                    style={{ opacity: isLoading ? 0.6 : 1 }}
-                  >
-                    {isLoading ? 'Generating...' : nudge ? 'Regenerate' : 'Generate Nudge'}
-                  </Button>
+                <div className="flex items-center gap-3">
                   {nudge && !isSent && (
-                    <div className="flex gap-1 items-center">
-                      <select
-                        value={ch}
-                        onChange={(e) => setChannel((prev) => ({ ...prev, [key]: e.target.value }))}
-                        className="border border-border rounded-sm px-2 py-1 text-xs bg-white"
-                      >
-                        {['Email', 'WhatsApp'].map((c) => <option key={c}>{c}</option>)}
-                      </select>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleSend(t)}
-                        disabled={sending[key]}
-                        style={{ opacity: sending[key] ? 0.6 : 1 }}
-                      >
-                        {sending[key] ? 'Sending...' : `Send ${CHANNEL_ICONS[ch]}`}
-                      </Button>
+                    <div className="flex bg-surface-container-low p-1 rounded-lg">
+                      {['Email','WhatsApp'].map(c => (
+                        <button key={c} onClick={() => setChannel(p => ({ ...p, [key]: c }))}
+                          className={`px-3 py-1 text-[10px] font-bold rounded transition-colors ${ch===c ? 'bg-white shadow-sm text-primary' : 'text-outline'}`}>
+                          {c === 'Email' ? 'EMAIL' : 'WA'}
+                        </button>
+                      ))}
                     </div>
+                  )}
+                  <button
+                    onClick={() => nudge && !isSent ? handleSend(t) : handleGenerate(t)}
+                    disabled={isLoad || allGenerating || sending[key]}
+                    className={`px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors disabled:opacity-60 ${
+                      isSent ? 'bg-surface-container text-on-surface-variant cursor-default'
+                      : nudge ? 'bg-on-surface text-surface hover:bg-primary'
+                      : 'bg-gradient-to-r from-primary to-primary-container text-on-primary shadow-lg'
+                    }`}
+                  >
+                    {isLoad ? <><span className="material-symbols-outlined text-sm animate-spin">refresh</span> Generating</>
+                    : sending[key] ? 'Sending...'
+                    : isSent ? <><span className="material-symbols-outlined text-sm">check</span> Sent</>
+                    : nudge ? <><span className="material-symbols-outlined text-sm">send</span> Send</>
+                    : <><span className="material-symbols-outlined text-sm" style={{fontVariationSettings:"'FILL' 1"}}>auto_awesome</span> Generate</>
+                    }
+                  </button>
+                  {nudge && !isSent && (
+                    <button onClick={() => handleGenerate(t)} disabled={isLoad || allGenerating}
+                      className="p-2 hover:bg-surface-container-high rounded-full text-outline transition-colors" title="Regenerate">
+                      <span className="material-symbols-outlined text-sm">refresh</span>
+                    </button>
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           );
         })}
-      </div>
+      </section>
 
-      <div className="mt-6 p-4 bg-gray-100 border border-border rounded-sm text-xs text-muted">
-        <strong style={{ color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', fontSize: '0.65rem' }}>
-          Active Guardrails
-        </strong>
-        <span className="ml-4">
-          One sentence · Max 20 words · No frameworks · No emotional language · No session references · No new topics · No personality labels
-        </span>
-      </div>
+      {/* Guardrails footer */}
+      <footer className="fixed bottom-6 left-72 right-8 bg-on-surface text-surface py-4 px-8 rounded-2xl flex items-center justify-between shadow-2xl z-40">
+        <div className="flex items-center gap-6">
+          <span className="material-symbols-outlined text-tertiary-fixed" style={{fontVariationSettings:"'FILL' 1"}}>gavel</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-surface/60">Active Guardrails</span>
+          <div className="flex gap-6 border-l border-surface/10 pl-6 text-xs text-surface/70">
+            <span>One sentence · Max 20 words</span>
+            <span>No frameworks · No emotional language</span>
+            <span>No session references · No new topics</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
