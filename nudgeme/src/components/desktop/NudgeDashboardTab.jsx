@@ -25,54 +25,75 @@ export default function NudgeDashboardTab({ coachees, topics }) {
   const [editVal, setEditVal]       = useState('');
   const [copied, setCopied]         = useState(null);
   const [filter, setFilter]         = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState(''); // New search state
 
+  // Get unique coachee names
   const coacheeNames = ['ALL', ...Array.from(new Set(coachees.map(c => c.coacheeName)))];
-  const filtered = filter === 'ALL' ? topics : topics.filter(t => t.coacheeName === filter);
+  
+  // Filter by selected coachee AND search term
+  const filteredTopics = filter === 'ALL' 
+    ? topics.filter(t => t.coacheeName.toLowerCase().includes(searchTerm.toLowerCase()))
+    : topics.filter(t => 
+        t.coacheeName === filter && 
+        t.coacheeName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
   const handleGenerate = async (t) => {
     const key = topicKey(t);
     setLoading(key);
-
     try {
       const result = await generateWithRetry(t.topic, t.coacheeName);
-
-      setNudges(p => ({
-        ...p,
-        [key]: result
-      }));
+      setNudges(p => ({ ...p, [key]: result }));
     } catch (e) {
-      setNudges(p => ({
-        ...p,
-        [key]: '⚠ Failed to generate.'
-      }));
+      setNudges(p => ({ ...p, [key]: '⚠ Failed to generate.' }));
     }
-
     setLoading(null);
   };
 
   const handleGenerateAll = async () => {
-    setAllGen(true); setProgress({ current: 0, total: filtered.length });
-    for (let i = 0; i < filtered.length; i++) {
-      const t = filtered[i]; const key = topicKey(t);
-      setLoading(key); setProgress({ current: i+1, total: filtered.length });
-      try { const n = await generateWithRetry(t.topic, t.coacheeName); setNudges(p => ({ ...p, [key]: n })); }
-      catch(e) { setNudges(p => ({ ...p, [key]: '⚠ Failed.' })); }
+    setAllGen(true); 
+    setProgress({ current: 0, total: filteredTopics.length });
+    for (let i = 0; i < filteredTopics.length; i++) {
+      const t = filteredTopics[i]; 
+      const key = topicKey(t);
+      setLoading(key); 
+      setProgress({ current: i+1, total: filteredTopics.length });
+      try { 
+        const n = await generateWithRetry(t.topic, t.coacheeName); 
+        setNudges(p => ({ ...p, [key]: n })); 
+      }
+      catch(e) { 
+        setNudges(p => ({ ...p, [key]: '⚠ Failed.' })); 
+      }
       await sleep(2000);
     }
-    setLoading(null); setAllGen(false); setProgress({ current: 0, total: 0 });
+    setLoading(null); 
+    setAllGen(false); 
+    setProgress({ current: 0, total: 0 });
   };
 
   const handleSend = async (t) => {
-    const key = topicKey(t); const nudge = nudges[key]; if (!nudge) return;
+    const key = topicKey(t); 
+    const nudge = nudges[key]; 
+    if (!nudge) return;
     const ch = channel[key] || 'Email';
     const coachee = coachees.find(c => c.coacheeName === t.coacheeName);
     const dest = ch === 'Email' ? coachee?.email : coachee?.phone;
     setSending(p => ({ ...p, [key]: true }));
     try {
-      const res = await sendNudge({ coacheeName: t.coacheeName, topic: t.topic, nudge, channel: ch, destination: dest, coach: t.coach });
+      const res = await sendNudge({ 
+        coacheeName: t.coacheeName, 
+        topic: t.topic, 
+        nudge, 
+        channel: ch, 
+        destination: dest, 
+        coach: t.coach 
+      });
       if (res.success) setNudges(p => ({ ...p, [key+'::sent']: true }));
       else alert(`Failed: ${res.error}`);
-    } catch(e) { alert(`Error: ${e.message}`); }
+    } catch(e) { 
+      alert(`Error: ${e.message}`); 
+    }
     setSending(p => ({ ...p, [key]: false }));
   };
 
@@ -86,32 +107,67 @@ export default function NudgeDashboardTab({ coachees, topics }) {
         </div>
         <div className="flex flex-col gap-3 w-full md:w-auto">
           <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-xl">
-            {/* Filter */}
+            {/* Filter Dropdown - EXACT SAME AS OLD UI */}
             <div className="px-3 py-2 bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/10 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-sm">filter_list</span>
-              <select value={filter} onChange={e => setFilter(e.target.value)}
-                className="bg-transparent border-none text-sm font-semibold text-on-surface focus:ring-0 cursor-pointer">
-                {coacheeNames.map(n => <option key={n}>{n === 'ALL' ? `All Coachees (${topics.length})` : `${n} (${topics.filter(t=>t.coacheeName===n).length})`}</option>)}
+              <select 
+                value={filter} 
+                onChange={e => setFilter(e.target.value)}
+                className="bg-transparent border-none text-sm font-semibold text-on-surface focus:ring-0 cursor-pointer"
+              >
+                {coacheeNames.map(n => (
+                  <option key={n} value={n}>
+                    {n === 'ALL' ? `All Coachees (${filteredTopics.length})` : `${n} (${topics.filter(t=>t.coacheeName===n).length})`}
+                  </option>
+                ))}
               </select>
             </div>
-            <button onClick={handleGenerateAll} disabled={allGenerating}
-              className="px-6 py-3 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-xl font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform disabled:opacity-60">
+
+            {/* Search Input */}
+            <div className="px-3 py-2 bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/10 flex items-center gap-2 flex-1">
+              <span className="material-symbols-outlined text-outline text-sm">search</span>
+              <input
+                type="text"
+                placeholder="Search coachees..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="bg-transparent border-none text-sm text-on-surface focus:ring-0 outline-none flex-1 w-32"
+              />
+            </div>
+
+            <button 
+              onClick={handleGenerateAll} 
+              disabled={allGenerating}
+              className="px-6 py-3 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-xl font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform disabled:opacity-60"
+            >
               <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
               {allGenerating ? `${progress.current}/${progress.total}` : 'Bulk Generate'}
             </button>
           </div>
           {allGenerating && (
             <div className="w-full bg-surface-container rounded-full h-1.5">
-              <div className="bg-primary h-1.5 rounded-full transition-all duration-500"
-                style={{ width: `${progress.total > 0 ? (progress.current/progress.total)*100 : 0}%` }} />
+              <div 
+                className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${progress.total > 0 ? (progress.current/progress.total)*100 : 0}%` }} 
+              />
             </div>
           )}
         </div>
       </section>
 
+      {/* Empty state */}
+      {filteredTopics.length === 0 && (
+        <div className="text-center py-20">
+          <span className="material-symbols-outlined text-4xl text-outline-variant">search_off</span>
+          <p className="mt-4 text-on-surface-variant italic">
+            {searchTerm ? 'No coachees match your search.' : 'No topics found for this filter.'}
+          </p>
+        </div>
+      )}
+
       {/* Cards grid */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-8">
-        {filtered.map(t => {
+        {filteredTopics.map(t => {
           const key    = topicKey(t);
           const nudge  = nudges[key];
           const isLoad = loadingTopic === key;
@@ -140,13 +196,25 @@ export default function NudgeDashboardTab({ coachees, topics }) {
               {nudge ? (
                 editing === key ? (
                   <div className="space-y-2">
-                    <textarea value={editVal} onChange={e => setEditVal(e.target.value)} autoFocus
-                      className="w-full bg-surface-container-high border-none rounded-xl text-sm p-4 focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none" />
+                    <textarea 
+                      value={editVal} 
+                      onChange={e => setEditVal(e.target.value)} 
+                      autoFocus
+                      className="w-full bg-surface-container-high border-none rounded-xl text-sm p-4 focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none" 
+                    />
                     <div className="flex gap-2">
-                      <button onClick={() => { setNudges(p => ({ ...p, [key]: editVal })); setEditing(null); }}
-                        className="flex-1 bg-primary text-on-primary py-2 rounded-xl text-sm font-bold">Save</button>
-                      <button onClick={() => setEditing(null)}
-                        className="flex-1 bg-surface-container text-on-surface-variant py-2 rounded-xl text-sm font-bold">Cancel</button>
+                      <button 
+                        onClick={() => { setNudges(p => ({ ...p, [key]: editVal })); setEditing(null); }}
+                        className="flex-1 bg-primary text-on-primary py-2 rounded-xl text-sm font-bold"
+                      >
+                        Save
+                      </button>
+                      <button 
+                        onClick={() => setEditing(null)}
+                        className="flex-1 bg-surface-container text-on-surface-variant py-2 rounded-xl text-sm font-bold"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -158,7 +226,10 @@ export default function NudgeDashboardTab({ coachees, topics }) {
               ) : (
                 <div className="bg-surface-container rounded-2xl p-6 flex items-center justify-center min-h-[80px]">
                   {isLoad
-                    ? <div className="flex items-center gap-3 text-on-surface-variant"><span className="material-symbols-outlined animate-spin text-primary">refresh</span> Generating...</div>
+                    ? <div className="flex items-center gap-3 text-on-surface-variant">
+                        <span className="material-symbols-outlined animate-spin text-primary">refresh</span> 
+                        Generating...
+                      </div>
                     : <p className="text-sm text-on-surface-variant italic">No nudge generated yet.</p>
                   }
                 </div>
@@ -168,12 +239,22 @@ export default function NudgeDashboardTab({ coachees, topics }) {
               <div className="flex items-center justify-between mt-auto">
                 <div className="flex gap-2">
                   {nudge && !isSent && editing !== key && <>
-                    <button onClick={() => { setEditing(key); setEditVal(nudge); }}
-                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" title="Edit">
+                    <button 
+                      onClick={() => { setEditing(key); setEditVal(nudge); }}
+                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" 
+                      title="Edit"
+                    >
                       <span className="material-symbols-outlined text-sm">edit</span>
                     </button>
-                    <button onClick={() => { navigator.clipboard.writeText(nudge); setCopied(key); setTimeout(()=>setCopied(null),1500); }}
-                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" title="Copy">
+                    <button 
+                      onClick={() => { 
+                        navigator.clipboard.writeText(nudge); 
+                        setCopied(key); 
+                        setTimeout(()=>setCopied(null),1500); 
+                      }}
+                      className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-outline" 
+                      title="Copy"
+                    >
                       <span className="material-symbols-outlined text-sm">{copied===key ? 'check' : 'content_copy'}</span>
                     </button>
                   </>}
@@ -183,8 +264,11 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                   {nudge && !isSent && (
                     <div className="flex bg-surface-container-low p-1 rounded-lg">
                       {['Email','WhatsApp'].map(c => (
-                        <button key={c} onClick={() => setChannel(p => ({ ...p, [key]: c }))}
-                          className={`px-3 py-1 text-[10px] font-bold rounded transition-colors ${ch===c ? 'bg-white shadow-sm text-primary' : 'text-outline'}`}>
+                        <button 
+                          key={c} 
+                          onClick={() => setChannel(p => ({ ...p, [key]: c }))}
+                          className={`px-3 py-1 text-[10px] font-bold rounded transition-colors ${ch===c ? 'bg-white shadow-sm text-primary' : 'text-outline'}`}
+                        >
                           {c === 'Email' ? 'EMAIL' : 'WA'}
                         </button>
                       ))}
@@ -207,8 +291,12 @@ export default function NudgeDashboardTab({ coachees, topics }) {
                     }
                   </button>
                   {nudge && !isSent && (
-                    <button onClick={() => handleGenerate(t)} disabled={isLoad || allGenerating}
-                      className="p-2 hover:bg-surface-container-high rounded-full text-outline transition-colors" title="Regenerate">
+                    <button 
+                      onClick={() => handleGenerate(t)} 
+                      disabled={isLoad || allGenerating}
+                      className="p-2 hover:bg-surface-container-high rounded-full text-outline transition-colors" 
+                      title="Regenerate"
+                    >
                       <span className="material-symbols-outlined text-sm">refresh</span>
                     </button>
                   )}
