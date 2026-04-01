@@ -20,7 +20,7 @@ from .queue import (
 )
 from .ai_service import (
     generate_nudge_server,
-    SYSTEM_PROMPT
+    DEFAULT_SYSTEM_PROMPT
 )
 from .email_service import send_email
 from .whatsapp_service import send_whatsapp
