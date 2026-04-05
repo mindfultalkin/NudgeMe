@@ -1,14 +1,15 @@
 import os
 import httpx
 
-# ── Environment Variables ──
-AISENSY_API_KEY = os.getenv("AISENSY_API_KEY")
-AISENSY_CAMPAIGN_NAME = os.getenv("AISENSY_CAMPAIGN_NAME")
+AISENSY_API_KEY              = os.getenv("AISENSY_API_KEY")
+AISENSY_CAMPAIGN_NAME        = os.getenv("AISENSY_CAMPAIGN_NAME")
 AISENSY_INTERACTIVE_CAMPAIGN = os.getenv("AISENSY_INTERACTIVE_CAMPAIGN", "")
+AISENSY_IMAGE_CAMPAIGN       = os.getenv("AISENSY_IMAGE_CAMPAIGN", "")
+NUDGE_IMAGE_URL              = os.getenv("NUDGE_IMAGE_URL", "")
+NUDGE_CTA_URL                = os.getenv("NUDGE_CTA_URL", "")
 
 
 def format_phone(destination: str) -> str:
-    """Format phone number to AiSensy format: 91XXXXXXXXXX"""
     digits = "".join(filter(str.isdigit, destination))
     if len(digits) == 12 and digits.startswith("91"):
         return digits
@@ -17,35 +18,59 @@ def format_phone(destination: str) -> str:
     return "91" + digits[-10:]
 
 
+def pick_campaign() -> tuple[str, str]:
+    """
+    Pick best campaign based on what is configured.
+    Returns (campaign_name, campaign_type)
+    Types: 'image_cta' | 'interactive' | 'standard'
+    """
+    if AISENSY_IMAGE_CAMPAIGN and NUDGE_IMAGE_URL:
+        return AISENSY_IMAGE_CAMPAIGN, "image_cta"
+    if AISENSY_INTERACTIVE_CAMPAIGN:
+        return AISENSY_INTERACTIVE_CAMPAIGN, "interactive"
+    return AISENSY_CAMPAIGN_NAME, "standard"
+
+
 async def send_whatsapp(coachee_name: str, nudge: str, destination: str):
     """
     Send a WhatsApp nudge via AiSensy.
-    Uses interactive template (with buttons) if AISENSY_INTERACTIVE_CAMPAIGN is set,
-    otherwise uses standard template.
+    Automatically picks the best template based on what is configured:
+      - Image + CTA button  → if AISENSY_IMAGE_CAMPAIGN + NUDGE_IMAGE_URL are set
+      - Interactive buttons → if AISENSY_INTERACTIVE_CAMPAIGN is set
+      - Standard text       → fallback
     """
     if not AISENSY_API_KEY:
-        raise Exception("AiSensy API key not configured. Set AISENSY_API_KEY in .env")
+        raise Exception("AiSensy API key not configured.")
     if not AISENSY_CAMPAIGN_NAME:
-        raise Exception("AiSensy campaign name not configured. Set AISENSY_CAMPAIGN_NAME in .env")
+        raise Exception("AiSensy campaign name not configured.")
 
     phone = format_phone(destination)
+    campaign, campaign_type = pick_campaign()
 
-    # Use interactive campaign if configured, else standard
-    campaign = AISENSY_INTERACTIVE_CAMPAIGN if AISENSY_INTERACTIVE_CAMPAIGN else AISENSY_CAMPAIGN_NAME
-    is_interactive = bool(AISENSY_INTERACTIVE_CAMPAIGN)
+    print(f"   📱 WhatsApp → {phone} via [{campaign_type}] template: {campaign}")
 
-    print(f"   📱 WhatsApp (AiSensy): Sending to {phone} via {'interactive' if is_interactive else 'standard'} template")
-
+    # Base payload
     payload = {
-        "apiKey": AISENSY_API_KEY,
+        "apiKey":       AISENSY_API_KEY,
         "campaignName": campaign,
-        "destination": phone,
-        "userName": coachee_name,
+        "destination":  phone,
+        "userName":     coachee_name,
         "templateParams": [
-            coachee_name,   # {{1}} — coachee name
-            nudge           # {{2}} — nudge text
+            coachee_name,  # {{1}}
+            nudge,         # {{2}}
         ]
     }
+
+    # Image + CTA: add media and buttons
+    if campaign_type == "image_cta":
+        payload["media"] = {
+            "url":      NUDGE_IMAGE_URL,
+            "filename": "nudge_banner.jpg"
+        }
+        if NUDGE_CTA_URL:
+            payload["buttons"] = [
+                {"type": "url", "url": NUDGE_CTA_URL}
+            ]
 
     try:
         async with httpx.AsyncClient() as client:
@@ -55,7 +80,6 @@ async def send_whatsapp(coachee_name: str, nudge: str, destination: str):
                 headers={"Content-Type": "application/json"},
                 timeout=30.0
             )
-
             response_data = response.json() if response.text else {}
 
             if response.status_code >= 400:
@@ -63,13 +87,11 @@ async def send_whatsapp(coachee_name: str, nudge: str, destination: str):
                 print(f"   ❌ AiSensy Error [{response.status_code}]: {error_msg}")
                 raise Exception(f"AiSensy error: {error_msg}")
 
-            print(f"   ✅ WhatsApp sent via AiSensy to {phone}")
+            print(f"   ✅ Sent via AiSensy [{campaign_type}] to {phone}")
             return response_data
 
     except httpx.TimeoutException:
-        print(f"   ❌ AiSensy request timed out")
-        raise Exception("AiSensy request timed out. Please try again.")
-
+        raise Exception("AiSensy request timed out.")
     except Exception as e:
         print(f"   ❌ WhatsApp Failed: {str(e)}")
         raise

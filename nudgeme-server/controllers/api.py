@@ -1,6 +1,9 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+import json
+from pathlib import Path
+GUARDRAILS_FILE = Path(__file__).parent.parent / "nudge-guardrails.json"
 
 from models.schemas import (
     QueueNudgeRequest,
@@ -29,6 +32,16 @@ from services.whatsapp_service import send_whatsapp
 
 # Create router
 router = APIRouter()
+
+def load_guardrails() -> dict:
+    if GUARDRAILS_FILE.exists():
+        with open(GUARDRAILS_FILE) as f:
+            return json.load(f)
+    return {}
+ 
+def save_guardrails(data: dict):
+    with open(GUARDRAILS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
 
 # ── Health Check ──
@@ -251,3 +264,13 @@ async def send_nudge(req: SendNudgeRequest):
     except Exception as e:
         logger.error(f"❌ Failed to send nudge to {req.destination}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/guardrails")
+async def get_guardrails():
+    return {"guardrails": load_guardrails()}
+ 
+@router.put("/guardrails")
+async def update_guardrails(req: dict):
+    save_guardrails(req.get("guardrails", {}))
+    return {"success": True}
