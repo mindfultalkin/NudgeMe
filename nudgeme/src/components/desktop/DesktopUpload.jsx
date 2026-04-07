@@ -81,7 +81,7 @@ export default function DesktopUpload({ onUpload, onSheetsLoad, error }) {
                     <p className="font-serif text-2xl font-semibold text-on-surface mb-2">Connect Google Sheet</p>
                     <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
                       Paste your Google Sheets URL below. The sheet must be set to
-                      <strong> "Anyone with link can view"</strong>. NudgeMe will auto-refresh every 5 minutes.
+                      <strong> "Anyone with link can view"</strong>. NudgeMe auto-syncs when you switch back to this tab.
                     </p>
                   </div>
 

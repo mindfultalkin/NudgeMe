@@ -15,15 +15,16 @@ import MobileUpload from './components/mobile/MobileUpload';
 import MobileApp from './components/mobile/MobileApp';
 
 const NAV = [
-  { id: 'overview',    label: 'Overview',        icon: 'dashboard' },
-  { id: 'nudges',      label: 'Nudge Dashboard',  icon: 'bolt' },
-  { id: 'approvals',   label: 'Approvals',        icon: 'fact_check' },
-  { id: 'coachees',    label: 'Coachees',         icon: 'group' },
-  { id: 'history',     label: 'History',          icon: 'history' },
-  { id: 'guardrails',  label: 'Guardrails',       icon: 'gavel' },
+  { id: 'overview',   label: 'Overview',        icon: 'dashboard' },
+  { id: 'nudges',     label: 'Nudge Dashboard',  icon: 'bolt' },
+  { id: 'approvals',  label: 'Approvals',        icon: 'fact_check' },
+  { id: 'coachees',   label: 'Coachees',         icon: 'group' },
+  { id: 'history',    label: 'History',          icon: 'history' },
+  { id: 'guardrails', label: 'Guardrails',       icon: 'gavel' },
 ];
 
-const SHEET_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+// Sync every 30 seconds
+const SHEET_REFRESH_INTERVAL = 30 * 1000;
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -54,24 +55,40 @@ export default function App() {
     return () => clearInterval(t);
   }, [coachees]);
 
-  // ── Auto-refresh Google Sheet every 5 minutes ──
-  useEffect(() => {
+  // ── Shared sync function ──
+  const syncSheet = useCallback(async () => {
     if (!sheetUrlRef.current) return;
-    const interval = setInterval(async () => {
-      if (!sheetUrlRef.current) return;
-      setSyncing(true);
-      try {
-        const data = await parseGoogleSheet(sheetUrlRef.current);
-        setCoachees(data.coachees);
-        setTopics(data.topics);
-        setLastSync(new Date());
-      } catch(e) { console.error('Sheet sync failed:', e.message); }
-      setSyncing(false);
-    }, SHEET_REFRESH_INTERVAL);
-    return () => clearInterval(interval);
-  }, [sheetUrl]);
+    setSyncing(true);
+    try {
+      const data = await parseGoogleSheet(sheetUrlRef.current);
+      setCoachees(data.coachees);
+      setTopics(data.topics);
+      setLastSync(new Date());
+    } catch(e) {
+      console.error('Sheet sync failed:', e.message);
+    }
+    setSyncing(false);
+  }, []);
 
-  // ── Excel upload handler ──
+  // ── Auto-refresh every 30 seconds ──
+  useEffect(() => {
+    if (!sheetUrl) return;
+    const interval = setInterval(syncSheet, SHEET_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [sheetUrl, syncSheet]);
+
+  // ── Sync immediately when user switches back to this browser tab ──
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && sheetUrlRef.current) {
+        syncSheet();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [syncSheet]);
+
+  // ── Excel upload ──
   const handleUpload = async (file) => {
     setUploadError('');
     try {
@@ -81,7 +98,7 @@ export default function App() {
     } catch(err) { setUploadError(err.message); }
   };
 
-  // ── Google Sheets load handler ──
+  // ── Google Sheets load ──
   const handleSheetsLoad = (data, url) => {
     setCoachees(data.coachees);
     setTopics(data.topics);
@@ -91,33 +108,18 @@ export default function App() {
     setLastSync(new Date());
   };
 
-  // ── Manual sync ──
-  const handleManualSync = async () => {
-    if (!sheetUrlRef.current) return;
-    setSyncing(true);
-    try {
-      const data = await parseGoogleSheet(sheetUrlRef.current);
-      setCoachees(data.coachees);
-      setTopics(data.topics);
-      setLastSync(new Date());
-    } catch(e) { alert('Sync failed: ' + e.message); }
-    setSyncing(false);
-  };
-
   const handleReset = () => {
     setCoachees(null); setTopics(null); setFileName('');
     setQueue([]); setHistory([]); setSheetUrl('');
     sheetUrlRef.current = '';
   };
 
-  // ── Show upload screen ──
   if (!coachees || !topics) {
     return isMobile
       ? <MobileUpload onUpload={handleUpload} error={uploadError} />
       : <DesktopUpload onUpload={handleUpload} onSheetsLoad={handleSheetsLoad} error={uploadError} />;
   }
 
-  // ── Mobile ──
   if (isMobile) {
     return <MobileApp coachees={coachees} topics={topics} queue={queue} history={history}
       schedule={schedule} fileName={fileName} onReset={handleReset}
@@ -128,7 +130,8 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-surface text-on-surface font-body">
-      {/* Sidebar */}
+
+      {/* ── Sidebar ── */}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-50 flex flex-col py-8 px-4 z-40">
         <div className="mb-8 px-2">
           <h1 className="text-xl font-serif italic text-primary">NudgeMe</h1>
@@ -146,43 +149,47 @@ export default function App() {
                 if (item.id === 'history') fetchHistoryData();
               }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive ? 'text-primary font-bold bg-white shadow-sm' : 'text-slate-500 hover:text-primary hover:translate-x-1'
+                  isActive
+                    ? 'text-primary font-bold bg-white shadow-sm'
+                    : 'text-slate-500 hover:text-primary hover:translate-x-1'
                 }`}>
                 <span className="material-symbols-outlined text-[20px]"
                   style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
                   {item.icon}
                 </span>
                 <span className="flex-1 text-left">{item.label}</span>
-                {badge && <span className="bg-error text-on-error text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>}
+                {badge && (
+                  <span className="bg-error text-on-error text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
 
-        {/* Footer */}
+        {/* ── Footer — NO manual sync button ── */}
         <div className="mt-4 pt-4 border-t border-outline-variant/20 px-2 space-y-3">
-          {/* Sync status */}
-          {sheetUrl && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${syncing ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`} />
-                <span className="text-[10px] text-outline">
-                  {syncing ? 'Syncing...' : lastSync ? `Synced ${lastSync.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}` : 'Google Sheet'}
-                </span>
-              </div>
-              <button onClick={handleManualSync} disabled={syncing}
-                className="flex items-center gap-1 text-[10px] text-primary hover:underline disabled:opacity-50">
-                <span className="material-symbols-outlined text-[12px]">sync</span>
-                Sync now
-              </button>
+          {sheetUrl ? (
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
+                syncing ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'
+              }`} />
+              <span className="text-[10px] text-outline">
+                {syncing
+                  ? 'Syncing...'
+                  : lastSync
+                    ? `Synced ${lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : 'Google Sheet connected'}
+              </span>
             </div>
-          )}
-          {!sheetUrl && (
+          ) : (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
               <span className="text-[10px] text-outline truncate">{fileName}</span>
             </div>
           )}
+
           <button onClick={handleReset}
             className="text-xs text-outline hover:text-primary transition-colors flex items-center gap-2">
             <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
@@ -191,7 +198,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* ── Main ── */}
       <main className="ml-64 flex-1 min-h-screen">
         <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shadow-sm">
           <div className="flex items-center gap-3 text-sm">
@@ -207,10 +214,12 @@ export default function App() {
             <span>{topics.length} topics</span>
             <span className="text-outline-variant">·</span>
             <span className="text-green-600 font-semibold">{history.length} sent</span>
-            {pendingCount > 0 && <>
-              <span className="text-outline-variant">·</span>
-              <span className="text-error font-semibold">{pendingCount} pending</span>
-            </>}
+            {pendingCount > 0 && (
+              <>
+                <span className="text-outline-variant">·</span>
+                <span className="text-error font-semibold">{pendingCount} pending</span>
+              </>
+            )}
           </div>
         </header>
 
