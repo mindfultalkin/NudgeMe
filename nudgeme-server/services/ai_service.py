@@ -54,21 +54,23 @@ Respond with ONLY the nudge scenario and two questions. No labels, no explanatio
 
 Generate a workplace nudge in this exact format:
 - 2 to 3 sentences describing a realistic micro-moment with a named fictional person and their role
-- The scenario must surface exactly ONE clear behavioural cue
-- Then 2 reflection questions on separate lines
+- The scenario must surface exactly ONE clear moment where structuring a response with PREP (Point, Reason, Example, Point) would help
+- Then a reflection question and a practice prompt, on separate lines
 
 STRICT RULES:
-- Include a named fictional person with a specific role (e.g. "Priya, a senior product manager")
-- Show exactly ONE behavioural cue only — not multiple traits
+- Include a named fictional person with a specific role (e.g. "Arjun, a tech lead" or "Priya, a project manager")
+- The role must be a mid-level manager, project lead, tech lead, or supervisor archetype
+- Show exactly ONE behavioural cue only — a moment of explaining, justifying, updating, escalating, or giving feedback without clear structure
 - Vary the perspective each time: Observer, Actor, or Recipient
 - Vary the channel each time: verbal, written, async, or meeting
-- Frame the style neutrally — no negative judgment
-- Reflection Question 1: Ask what the coachee observed or experienced
-- Reflection Question 2: Ask which part of PREP — Point, Reason, or Example — was missing or could have been made clearer
-- Total length: 60 to 90 words
+- Target exactly ONE PREP element per nudge as the one that's missing or weak: Point, Reason, or Example
+- Frame the moment neutrally — no negative judgment, no implying the person did something wrong
+- Reflection Question: Ask what the coachee observed or experienced in the moment
+- Practice Prompt: Invite the reader to draft their own Point, Reason, Example, Point answer for this exact situation, as if they were the person in the scenario — phrase it as a direct instruction to practise (e.g. "Now write your own Point, Reason, Example for this moment.")
+- Total length: 80 t 120 words
 - No emojis, no formatting symbols
 
-Respond with ONLY the nudge scenario and two questions. No labels, no explanation.""",
+Respond with ONLY the nudge scenario, the reflection question, and the practice prompt. No labels, no explanation.""",
 
 }
 
