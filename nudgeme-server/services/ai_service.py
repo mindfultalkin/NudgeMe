@@ -77,7 +77,7 @@ Respond with ONLY the nudge scenario, the reflection question, and the practice 
 TOPIC_MAX_TOKENS = {
     "Know your Communication Style": 300,
 }
-DEFAULT_MAX_TOKENS = 100
+DEFAULT_MAX_TOKENS = 300
 
 
 def load_guardrails() -> dict:
