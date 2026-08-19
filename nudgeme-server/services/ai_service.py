@@ -127,6 +127,7 @@ async def generate_nudge_server(topic: str, coachee_name: str) -> str:
                 "model":      "claude-sonnet-5",
                 "max_tokens": max_tokens,
                 "system":     system_prompt,
+                "thinking":   {"type": "disabled"},
                 "messages":   [{"role": "user", "content": user_message}]
             },
             headers={
@@ -143,4 +144,7 @@ async def generate_nudge_server(topic: str, coachee_name: str) -> str:
                 f"Anthropic API error ({response.status_code}): "
                 f"{error.get('type', 'unknown')} - {error.get('message', data)}"
             )
-        return data["content"][0].get("text", "").strip()
+        text_block = next((b for b in data["content"] if b.get("type") == "text"), None)
+        if text_block is None:
+            raise RuntimeError(f"No text block in Anthropic response: {data}")
+        return text_block.get("text", "").strip()

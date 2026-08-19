@@ -33,6 +33,7 @@ Coachee replied: "{reply}"
                 "model": "claude-sonnet-5",
                 "max_tokens": 100,
                 "system": "You are NudgeMe. Respond to coachee replies with one short supportive sentence. Max 20 words. No emojis. No frameworks.",
+                "thinking": {"type": "disabled"},
                 "messages": [{"role": "user", "content": user_message}]
             },
             headers={
@@ -49,7 +50,10 @@ Coachee replied: "{reply}"
                 f"Anthropic API error ({response.status_code}): "
                 f"{error.get('type', 'unknown')} - {error.get('message', data)}"
             )
-        return data["content"][0].get("text", "").strip()
+        text_block = next((b for b in data["content"] if b.get("type") == "text"), None)
+        if text_block is None:
+            raise RuntimeError(f"No text block in Anthropic response: {data}")
+        return text_block.get("text", "").strip()
 
 
 def find_coachee_by_phone(phone: str, schedule: list) -> dict:
