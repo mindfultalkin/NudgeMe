@@ -117,11 +117,14 @@ async def generate_nudge_server(topic: str, coachee_name: str) -> str:
     max_tokens     = TOPIC_MAX_TOKENS.get(topic, DEFAULT_MAX_TOKENS)
     user_message   = f'Generate a coaching nudge for the topic: "{topic}"{avoid_section}{difficulty}'
 
+    if not ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set")
+
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://api.anthropic.com/v1/messages",
             json={
-                "model":      "claude-sonnet-4-20250514",
+                "model":      "claude-sonnet-5",
                 "max_tokens": max_tokens,
                 "system":     system_prompt,
                 "messages":   [{"role": "user", "content": user_message}]
@@ -134,4 +137,10 @@ async def generate_nudge_server(topic: str, coachee_name: str) -> str:
             timeout=30.0
         )
         data = response.json()
-        return data.get("content", [{}])[0].get("text", "").strip()
+        if response.status_code != 200 or "content" not in data:
+            error = data.get("error", {})
+            raise RuntimeError(
+                f"Anthropic API error ({response.status_code}): "
+                f"{error.get('type', 'unknown')} - {error.get('message', data)}"
+            )
+        return data["content"][0].get("text", "").strip()

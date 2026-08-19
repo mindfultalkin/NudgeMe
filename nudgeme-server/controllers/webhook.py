@@ -30,7 +30,7 @@ Coachee replied: "{reply}"
         response = await client.post(
             "https://api.anthropic.com/v1/messages",
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-5",
                 "max_tokens": 100,
                 "system": "You are NudgeMe. Respond to coachee replies with one short supportive sentence. Max 20 words. No emojis. No frameworks.",
                 "messages": [{"role": "user", "content": user_message}]
@@ -43,7 +43,13 @@ Coachee replied: "{reply}"
             timeout=30.0
         )
         data = response.json()
-        return data.get("content", [{}])[0].get("text", "").strip()
+        if response.status_code != 200 or "content" not in data:
+            error = data.get("error", {})
+            raise RuntimeError(
+                f"Anthropic API error ({response.status_code}): "
+                f"{error.get('type', 'unknown')} - {error.get('message', data)}"
+            )
+        return data["content"][0].get("text", "").strip()
 
 
 def find_coachee_by_phone(phone: str, schedule: list) -> dict:
