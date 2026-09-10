@@ -32,8 +32,8 @@ Coachee replied: "{reply}"
             json={
                 "model": "claude-sonnet-5",
                 "max_tokens": 100,
-                "system": "You are NudgeMe. Respond to coachee replies with one short supportive sentence. Max 20 words. No emojis. No frameworks.",
-                "thinking": {"type": "disabled"},
+                "system": "You are NudgeMe. Respond to coachee replies with one or two supportive sentence. Max 125 words. No emojis. No frameworks.",
+                "thinking": {"type": "enabled"},
                 "messages": [{"role": "user", "content": user_message}]
             },
             headers={
