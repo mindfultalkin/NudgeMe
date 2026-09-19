@@ -22,6 +22,7 @@ export function parseExcelFile(file) {
             program: r['Program'] || '',
             phone: String(r['Coachee Phone No.'] || ''),
             email: r['Coachee Email'] || '',
+            profile: r['Coachee Profile'] || '',
           }));
         
         // Parse Topics Covered sheet

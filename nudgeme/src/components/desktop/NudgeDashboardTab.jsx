@@ -4,10 +4,10 @@ import { generateNudge, sendNudge } from '../../services/api';
 import { CHANNEL_ICONS } from '../../utils/constants';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const generateWithRetry = async (topic, coacheeName, retries = 3) => {
+const generateWithRetry = async (topic, coacheeName, coacheeProfile, retries = 3) => {
   for (let i = 1; i <= retries; i++) {
     try {
-      const n = await generateNudge(topic, coacheeName);
+      const n = await generateNudge(topic, coacheeName, coacheeProfile);
       if (n && !n.includes('Error')) return n;
       throw new Error('bad nudge');
     } catch(e) { if (i < retries) await sleep(i * 2000); else throw e; }
@@ -42,7 +42,8 @@ export default function NudgeDashboardTab({ coachees, topics }) {
     const key = topicKey(t);
     setLoading(key);
     try {
-      const result = await generateWithRetry(t.topic, t.coacheeName);
+      const profile = coachees.find(c => c.coacheeName === t.coacheeName)?.profile || '';
+      const result = await generateWithRetry(t.topic, t.coacheeName, profile);
       setNudges(p => ({ ...p, [key]: result }));
     } catch (e) {
       setNudges(p => ({ ...p, [key]: '⚠ Failed to generate.' }));
@@ -56,11 +57,12 @@ export default function NudgeDashboardTab({ coachees, topics }) {
     for (let i = 0; i < filteredTopics.length; i++) {
       const t = filteredTopics[i]; 
       const key = topicKey(t);
-      setLoading(key); 
+      setLoading(key);
       setProgress({ current: i+1, total: filteredTopics.length });
-      try { 
-        const n = await generateWithRetry(t.topic, t.coacheeName); 
-        setNudges(p => ({ ...p, [key]: n })); 
+      try {
+        const profile = coachees.find(c => c.coacheeName === t.coacheeName)?.profile || '';
+        const n = await generateWithRetry(t.topic, t.coacheeName, profile);
+        setNudges(p => ({ ...p, [key]: n }));
       }
       catch(e) { 
         setNudges(p => ({ ...p, [key]: '⚠ Failed.' })); 

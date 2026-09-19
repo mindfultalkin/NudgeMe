@@ -25,6 +25,7 @@ export default function MobCoachees({ coachees, topics, schedule, onScheduleUpda
         channel: schedEntry?.channel || 'Email',
         email: coachee.email,
         phone: coachee.phone,
+        coacheeProfile: coachee.profile || '',
       });
       setQueued((prev) => ({ ...prev, [topic]: true }));
     } catch (e) {
@@ -65,7 +66,8 @@ export default function MobCoachees({ coachees, topics, schedule, onScheduleUpda
             { l: 'Program', v: coachee.program },
             { l: 'Email', v: coachee.email },
             { l: 'Phone', v: coachee.phone },
-          ].map((f) => (
+            { l: 'Profile', v: coachee.profile },
+          ].filter((f) => f.v).map((f) => (
             <div key={f.l} className="mb-2">
               <span className="text-xs tracking-widest uppercase text-gray-500">{f.l}: </span>
               <span className="text-sm text-gray-400">{f.v}</span>

@@ -9,6 +9,7 @@ class QueueNudgeRequest(BaseModel):
     channel: str
     email: str
     phone: str
+    coacheeProfile: Optional[str] = ""
 
 
 class SendNudgeRequest(BaseModel):

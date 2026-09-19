@@ -5,10 +5,10 @@ import { generateNudge, sendNudge } from '../../services/api';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const generateWithRetry = async (topic, coacheeName, retries = 3) => {
+const generateWithRetry = async (topic, coacheeName, coacheeProfile, retries = 3) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const nudge = await generateNudge(topic, coacheeName);
+      const nudge = await generateNudge(topic, coacheeName, coacheeProfile);
       if (nudge && !nudge.includes('Error')) return nudge;
       throw new Error('Empty nudge');
     } catch (e) {
@@ -41,7 +41,8 @@ export default function MobNudges({ coachees, topics }) {
     setLoadingKey(key);
     setExpanded(key);
     try {
-      const nudge = await generateWithRetry(t.topic, t.coacheeName);
+      const profile = coachees.find((c) => c.coacheeName === t.coacheeName)?.profile || '';
+      const nudge = await generateWithRetry(t.topic, t.coacheeName, profile);
       setNudges((p) => ({ ...p, [key]: nudge }));
     } catch (e) {
       setNudges((p) => ({ ...p, [key]: '⚠ Failed. Tap to retry.' }));
@@ -58,7 +59,8 @@ export default function MobNudges({ coachees, topics }) {
       setLoadingKey(key);
       setProgress({ current: i + 1, total: filtered.length });
       try {
-        const nudge = await generateWithRetry(t.topic, t.coacheeName);
+        const profile = coachees.find((c) => c.coacheeName === t.coacheeName)?.profile || '';
+        const nudge = await generateWithRetry(t.topic, t.coacheeName, profile);
         setNudges((p) => ({ ...p, [key]: nudge }));
       } catch (e) {
         setNudges((p) => ({ ...p, [key]: '⚠ Failed.' }));

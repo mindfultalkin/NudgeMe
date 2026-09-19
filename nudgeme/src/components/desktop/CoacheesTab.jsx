@@ -36,6 +36,7 @@ export default function CoacheesTab({ coachees, topics, schedule, onScheduleUpda
     sendTime: '09:00', sendDay: 'monday',
     email: coachees.find(c=>c.coacheeName===name)?.email || '',
     phone: coachees.find(c=>c.coacheeName===name)?.phone || '',
+    profile: coachees.find(c=>c.coacheeName===name)?.profile || '',
     topics: topics.filter(t=>t.coacheeName===name).map(t=>t.topic),
     lastTopicIndex: -1,
   };
@@ -65,7 +66,7 @@ export default function CoacheesTab({ coachees, topics, schedule, onScheduleUpda
     setBSaving(true); setBOk(false);
     const updated = coachees.map(c => {
       const ex = localSchedule.find(s => s.coacheeName === c.coacheeName);
-      return { ...(ex||{}), coacheeName: c.coacheeName, coach: c.coach, email: c.email, phone: c.phone,
+      return { ...(ex||{}), coacheeName: c.coacheeName, coach: c.coach, email: c.email, phone: c.phone, profile: c.profile || '',
         topics: topics.filter(t=>t.coacheeName===c.coacheeName).map(t=>t.topic),
         channel: bulkChannel, frequency: bulkFreq, sendTime: bulkTime, sendDay: bulkDay,
         active: true, lastTopicIndex: ex?.lastTopicIndex ?? -1 };
@@ -83,7 +84,8 @@ export default function CoacheesTab({ coachees, topics, schedule, onScheduleUpda
     try {
       const entry = getEntry(selected);
       await queueNudge({ coacheeName: coachee.coacheeName, coach: coachee.coach, topic,
-        channel: entry.channel || 'Email', email: coachee.email, phone: coachee.phone });
+        channel: entry.channel || 'Email', email: coachee.email, phone: coachee.phone,
+        coacheeProfile: coachee.profile || '' });
       setQueued(p => ({ ...p, [topic]: true }));
     } catch(e) { console.error(e); }
     setQueueing(false);
@@ -215,6 +217,9 @@ export default function CoacheesTab({ coachees, topics, schedule, onScheduleUpda
                   <span>·</span>
                   <span className="text-tertiary font-bold uppercase">{coachee.program}</span>
                 </div>
+                {coachee.profile && (
+                  <p className="text-xs text-on-surface-variant/80 italic mt-2 max-w-xl">{coachee.profile}</p>
+                )}
               </div>
             </div>
 

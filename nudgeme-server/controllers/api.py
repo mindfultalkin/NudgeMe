@@ -55,11 +55,12 @@ async def health_check():
 @router.get("/generate-nudge")
 async def generate_nudge(
     topic: str = Query(...),
-    coacheeName: str = Query(...)
+    coacheeName: str = Query(...),
+    coacheeProfile: str = Query("")
 ):
     """Generate a nudge using the backend AI service."""
     try:
-        nudge = await generate_nudge_server(topic, coacheeName)
+        nudge = await generate_nudge_server(topic, coacheeName, coacheeProfile)
         return {"nudge": nudge}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -113,7 +114,7 @@ async def add_to_queue(req: QueueNudgeRequest):
     """Add a nudge to the queue for approval."""
     try:
         # Generate nudge using AI
-        nudge = await generate_nudge_server(req.topic, req.coacheeName)
+        nudge = await generate_nudge_server(req.topic, req.coacheeName, req.coacheeProfile or "")
         
         # Determine destination based on channel
         destination = req.email if req.channel == "Email" else req.phone

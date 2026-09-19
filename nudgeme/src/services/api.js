@@ -80,10 +80,10 @@ export async function sendNudge(data) {
 }
 
 // Generate nudge using backend AI service (recommended)
-export async function generateNudge(topic, coacheeName) {
+export async function generateNudge(topic, coacheeName, coacheeProfile = '') {
   try {
     const response = await fetch(
-      `${SERVER}/generate-nudge?topic=${encodeURIComponent(topic)}&coacheeName=${encodeURIComponent(coacheeName)}`
+      `${SERVER}/generate-nudge?topic=${encodeURIComponent(topic)}&coacheeName=${encodeURIComponent(coacheeName)}&coacheeProfile=${encodeURIComponent(coacheeProfile)}`
     );
     const data = await response.json();
     return data.nudge || 'Error generating nudge.';

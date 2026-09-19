@@ -254,6 +254,7 @@ export async function parseGoogleSheet(url) {
       program:     col(r, 'Program'),
       phone:       col(r, 'Coachee Phone No.', 'Coachee Phone No', 'Phone', 'Phone No', 'CoacheePhone', 'Mobile'),
       email:       col(r, 'Coachee Email', 'CoacheeEmail', 'Email'),
+      profile:     col(r, 'Coachee Profile', 'CoacheeProfile', 'Profile'),
     }));
 
   const topics = topicsRaw

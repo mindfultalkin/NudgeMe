@@ -96,11 +96,12 @@ def load_guardrails() -> dict:
     return {}
 
 
-def build_system_prompt(topic: str) -> str:
+def build_system_prompt(topic: str, coachee_profile: str = "") -> str:
     """
     Build the system prompt for a topic.
     Priority: topic-specific built-in > default built-in
-    Then appends any coach-defined guardrails from the dashboard.
+    Then appends any coach-defined guardrails from the dashboard,
+    then instructions for using the coachee's profile, if provided.
     """
     # 1. Start with built-in prompt
     base = TOPIC_SYSTEM_PROMPTS.get(topic, DEFAULT_SYSTEM_PROMPT)
@@ -113,6 +114,17 @@ def build_system_prompt(topic: str) -> str:
 
     if custom.strip():
         base += f"\n\nADDITIONAL RULES FROM COACH:\n{custom.strip()}"
+
+    # 4. If a coachee profile is available, instruct the model to tailor to it
+    if coachee_profile.strip():
+        base += (
+            "\n\nCOACHEE PROFILE:\n"
+            f"{coachee_profile.strip()}\n\n"
+            "Use this profile to make the scenario, role, and questions feel specific to this "
+            "coachee — their seniority, function, industry, or day-to-day context. Where relevant, "
+            "you may include one brief insight or observation tailored to them. Do not quote or "
+            "restate the profile text verbatim, and do not reference that a profile was provided."
+        )
 
     return base
 
@@ -129,7 +141,7 @@ def build_difficulty_hint(topic: str, nudge_count: int) -> str:
         return "\n\nDIFFICULTY: Hard — use an ambiguous cue that requires careful observation."
 
 
-async def generate_nudge_server(topic: str, coachee_name: str) -> str:
+async def generate_nudge_server(topic: str, coachee_name: str, coachee_profile: str = "") -> str:
     """Generate a coaching nudge using Claude AI."""
     past_nudges      = get_past_nudges(coachee_name, topic)
     past_nudges_text = [n["nudge"] for n in past_nudges]
@@ -139,7 +151,7 @@ async def generate_nudge_server(topic: str, coachee_name: str) -> str:
         avoid_section = "\n\nALREADY SENT — do NOT repeat or closely paraphrase:\n"
         avoid_section += "\n".join([f"{i+1}. {n}" for i, n in enumerate(past_nudges_text)])
 
-    system_prompt  = build_system_prompt(topic)
+    system_prompt  = build_system_prompt(topic, coachee_profile)
     difficulty     = build_difficulty_hint(topic, len(past_nudges_text))
     max_tokens     = TOPIC_MAX_TOKENS.get(topic, DEFAULT_MAX_TOKENS)
     user_message   = f'Generate a coaching nudge for the topic: "{topic}"{avoid_section}{difficulty}'

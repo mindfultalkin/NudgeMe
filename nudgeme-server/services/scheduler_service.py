@@ -96,7 +96,7 @@ async def run_scheduled_nudges():
 
         try:
             # Generate nudge
-            nudge = await generate_nudge_server(topic, entry["coacheeName"])
+            nudge = await generate_nudge_server(topic, entry["coacheeName"], entry.get("profile", ""))
             if not nudge:
                 raise Exception("Empty nudge generated")
 
