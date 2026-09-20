@@ -17,6 +17,8 @@ Generate a nudge in this exact format:
 
 STRICT RULES:
 - Include a named fictional person with a specific role (e.g. "Priya, a senior product manager")
+- Set the scenario in an Indian workplace — Indian names, Indian companies or office settings, everyday Indian work situations
+- Keep the scenario simple. Use short, simple sentences — no long or complex sentences. One idea per sentence.
 - The scenario must be directly relevant to the coaching topic given
 - Vary the perspective each time: Observer, Actor, or Recipient
 - Vary the channel each time: verbal, written, async, or meeting
@@ -44,6 +46,8 @@ Generate a workplace nudge in this exact format:
 
 STRICT RULES:
 - Include a named fictional person with a specific role (e.g. "Priya, a senior product manager")
+- Set the scenario in an Indian workplace — Indian names, Indian companies or office settings, everyday Indian work situations
+- Keep the scenario simple. Use short, simple sentences — no long or complex sentences. One idea per sentence.
 - Show exactly ONE behavioural cue only — not multiple traits
 - Vary the perspective each time: Observer, Actor, or Recipient
 - Vary the channel each time: verbal, written, async, or meeting
@@ -64,6 +68,8 @@ Generate a workplace nudge in this exact format:
 
 STRICT RULES:
 - Include a named fictional person with a specific role (e.g. "Arjun, a tech lead" or "Priya, a project manager")
+- Set the scenario in an Indian workplace — Indian names, Indian companies or office settings, everyday Indian work situations
+- Keep the scenario simple. Use short, simple sentences — no long or complex sentences. One idea per sentence.
 - The role must be a mid-level manager, project lead, tech lead, or supervisor archetype
 - Show exactly ONE behavioural cue only — a moment of explaining, justifying, updating, escalating, or giving feedback without clear structure
 - Vary the perspective each time: Observer, Actor, or Recipient
