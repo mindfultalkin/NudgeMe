@@ -2,6 +2,7 @@ import os
 import json
 import httpx
 from pathlib import Path
+from typing import List, Optional
 from .history import get_past_nudges
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -150,15 +151,38 @@ def build_difficulty_hint(topic: str, nudge_count: int) -> str:
         return "\n\nDIFFICULTY: Hard — use an ambiguous cue that requires careful observation."
 
 
-async def generate_nudge_server(topic: str, coachee_name: str, coachee_profile: str = "") -> str:
+async def generate_nudge_server(
+    topic: str,
+    coachee_name: str,
+    coachee_profile: str = "",
+    recent_attempts: Optional[List[str]] = None
+) -> str:
     """Generate a coaching nudge using Claude AI."""
     past_nudges      = get_past_nudges(coachee_name, topic)
     past_nudges_text = [n["nudge"] for n in past_nudges]
 
+    # Recent attempts = generated-but-not-yet-sent nudges from this regenerate loop.
+    # Kept separate from sent history so we can tell the model how many times in a
+    # row the coach has regenerated without sending, and force a clean break after 3.
+    recent_attempts = [a for a in (recent_attempts or []) if a.strip()]
+
     avoid_section = ""
-    if past_nudges_text:
-        avoid_section = "\n\nALREADY SENT — do NOT repeat or closely paraphrase:\n"
-        avoid_section += "\n".join([f"{i+1}. {n}" for i, n in enumerate(past_nudges_text)])
+    shown = list(dict.fromkeys(past_nudges_text + recent_attempts))  # dedupe, preserve order
+    if shown:
+        avoid_section = "\n\nALREADY SHOWN — do NOT repeat or closely paraphrase these:\n"
+        avoid_section += "\n".join([f"{i+1}. {n}" for i, n in enumerate(shown)])
+
+    if len(recent_attempts) >= 3:
+        avoid_section += (
+            "\n\nBREAK AWAY: The coach has regenerated 3 or more times in a row without "
+            "sending. Do NOT build on, riff off, or vary any of the attempts listed above — "
+            "write a scenario in a completely different setting and moment, unrelated to them."
+        )
+    elif recent_attempts:
+        avoid_section += (
+            "\n\nMake this a genuinely different scenario from the ones above — a different "
+            "setting and moment, not a reworded version of the same one."
+        )
 
     system_prompt  = build_system_prompt(topic, coachee_profile)
     difficulty     = build_difficulty_hint(topic, len(past_nudges_text))

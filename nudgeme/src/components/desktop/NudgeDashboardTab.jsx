@@ -4,10 +4,10 @@ import { generateNudge, sendNudge } from '../../services/api';
 import { CHANNEL_ICONS } from '../../utils/constants';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const generateWithRetry = async (topic, coacheeName, coacheeProfile, retries = 3) => {
+const generateWithRetry = async (topic, coacheeName, coacheeProfile, recentAttempts, retries = 3) => {
   for (let i = 1; i <= retries; i++) {
     try {
-      const n = await generateNudge(topic, coacheeName, coacheeProfile);
+      const n = await generateNudge(topic, coacheeName, coacheeProfile, recentAttempts);
       if (n && !n.includes('Error')) return n;
       throw new Error('bad nudge');
     } catch(e) { if (i < retries) await sleep(i * 2000); else throw e; }
@@ -26,6 +26,8 @@ export default function NudgeDashboardTab({ coachees, topics }) {
   const [copied, setCopied]         = useState(null);
   const [filter, setFilter]         = useState('ALL');
   const [searchTerm, setSearchTerm] = useState(''); // New search state
+  // Nudges already shown per topic (not yet sent) — avoids repeating on regenerate
+  const [recentAttempts, setRecentAttempts] = useState({});
 
   // Get unique coachee names
   const coacheeNames = ['ALL', ...Array.from(new Set(coachees.map(c => c.coacheeName)))];
@@ -43,8 +45,10 @@ export default function NudgeDashboardTab({ coachees, topics }) {
     setLoading(key);
     try {
       const profile = coachees.find(c => c.coacheeName === t.coacheeName)?.profile || '';
-      const result = await generateWithRetry(t.topic, t.coacheeName, profile);
+      const prevAttempts = recentAttempts[key] || [];
+      const result = await generateWithRetry(t.topic, t.coacheeName, profile, prevAttempts);
       setNudges(p => ({ ...p, [key]: result }));
+      setRecentAttempts(p => ({ ...p, [key]: [...prevAttempts, result].slice(-6) }));
     } catch (e) {
       setNudges(p => ({ ...p, [key]: '⚠ Failed to generate.' }));
     }
@@ -61,8 +65,10 @@ export default function NudgeDashboardTab({ coachees, topics }) {
       setProgress({ current: i+1, total: filteredTopics.length });
       try {
         const profile = coachees.find(c => c.coacheeName === t.coacheeName)?.profile || '';
-        const n = await generateWithRetry(t.topic, t.coacheeName, profile);
+        const prevAttempts = recentAttempts[key] || [];
+        const n = await generateWithRetry(t.topic, t.coacheeName, profile, prevAttempts);
         setNudges(p => ({ ...p, [key]: n }));
+        setRecentAttempts(p => ({ ...p, [key]: [...prevAttempts, n].slice(-6) }));
       }
       catch(e) { 
         setNudges(p => ({ ...p, [key]: '⚠ Failed.' })); 
@@ -91,7 +97,10 @@ export default function NudgeDashboardTab({ coachees, topics }) {
         destination: dest, 
         coach: t.coach 
       });
-      if (res.success) setNudges(p => ({ ...p, [key+'::sent']: true }));
+      if (res.success) {
+        setNudges(p => ({ ...p, [key+'::sent']: true }));
+        setRecentAttempts(p => ({ ...p, [key]: [] }));
+      }
       else alert(`Failed: ${res.error}`);
     } catch(e) { 
       alert(`Error: ${e.message}`); 

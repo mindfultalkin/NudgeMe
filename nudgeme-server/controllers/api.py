@@ -1,6 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from typing import List, Optional
 import json
 from pathlib import Path
 GUARDRAILS_FILE = Path(__file__).parent.parent / "nudge-guardrails.json"
@@ -56,11 +56,12 @@ async def health_check():
 async def generate_nudge(
     topic: str = Query(...),
     coacheeName: str = Query(...),
-    coacheeProfile: str = Query("")
+    coacheeProfile: str = Query(""),
+    recentAttempts: List[str] = Query(default=[])
 ):
     """Generate a nudge using the backend AI service."""
     try:
-        nudge = await generate_nudge_server(topic, coacheeName, coacheeProfile)
+        nudge = await generate_nudge_server(topic, coacheeName, coacheeProfile, recentAttempts)
         return {"nudge": nudge}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

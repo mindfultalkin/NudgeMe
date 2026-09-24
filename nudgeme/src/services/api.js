@@ -80,11 +80,17 @@ export async function sendNudge(data) {
 }
 
 // Generate nudge using backend AI service (recommended)
-export async function generateNudge(topic, coacheeName, coacheeProfile = '') {
+// recentAttempts = nudges already shown for this topic/coachee in the current
+// session but not yet sent — lets the backend avoid repeating itself on regenerate.
+export async function generateNudge(topic, coacheeName, coacheeProfile = '', recentAttempts = []) {
   try {
-    const response = await fetch(
-      `${SERVER}/generate-nudge?topic=${encodeURIComponent(topic)}&coacheeName=${encodeURIComponent(coacheeName)}&coacheeProfile=${encodeURIComponent(coacheeProfile)}`
-    );
+    const params = new URLSearchParams();
+    params.set('topic', topic);
+    params.set('coacheeName', coacheeName);
+    params.set('coacheeProfile', coacheeProfile);
+    recentAttempts.forEach((a) => params.append('recentAttempts', a));
+
+    const response = await fetch(`${SERVER}/generate-nudge?${params.toString()}`);
     const data = await response.json();
     return data.nudge || 'Error generating nudge.';
   } catch (error) {
